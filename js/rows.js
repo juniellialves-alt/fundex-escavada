@@ -30,6 +30,9 @@ export const COLS_USUARIO = ['Nome', 'Usuário', 'Perfil', 'Ativo'];
 const PERFIL_TXT = { adm: 'Adm', operador: 'Operador', ajudante: 'Ajudante' };
 export function linhaUsuario(u) { return [u.nome, u.login, PERFIL_TXT[u.perfil] || u.perfil, u.ativo ? 'Sim' : 'Não']; }
 
+export const COLS_MAQUINA = ['Máquina', 'Ativa'];
+export function linhaMaquina(m) { return [m.nome, m.ativo ? 'Sim' : 'Não']; }
+
 /** Cópia do registro que vai na coluna escondida "Dados": é dela que os outros celulares leem. */
 const dadosJson = r => { const { sync, enviadoEm, ...resto } = r; return JSON.stringify(resto); };
 
@@ -44,6 +47,7 @@ const comControle = (cols, fn, baixavel) => ({
 });
 
 export const SYNC = [
+  { store: 'maquinas', aba: 'Máquinas', baixar: true, ...comControle(COLS_MAQUINA, linhaMaquina, true) },
   { store: 'usuarios', aba: 'Usuários', baixar: true, ...comControle(COLS_USUARIO, linhaUsuario, true) },
   { store: 'estacas', aba: 'Estacas', baixar: true, ...comControle(COLS_ESTACA, linhaEstaca, true) },
   { store: 'ocorrencias', aba: 'Ocorrências', baixar: true, ...comControle(COLS_OCORRENCIA, linhaOcorrencia, true) },

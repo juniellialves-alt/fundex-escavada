@@ -8,6 +8,8 @@ import { revalidarSessao } from './auth.js';
 
 const MAX_POR_LOTE = 150;
 const INTERVALO = 2 * 60 * 1000;
+// Abas que o script da versão 1.2 grava (ele não responde "gravadas").
+const ABAS_SCRIPT_ANTIGO = ['Usuários', 'Estacas', 'Ocorrências', 'Conferências', 'Alterações'];
 let enviando = false;
 let baixando = false;
 let agendado = null;
@@ -76,22 +78,26 @@ export async function enviarAgora() {
   if (c.erro) return { ok: false, msg: c.erro };
   enviando = true; emitir();
   let total = 0;
+  const recusadas = new Set(); // abas que o script da planilha ainda não conhece (script antigo)
   try {
     for (let lote = 0; lote < 50; lote++) {
       const abas = {};
       const enviados = [];
       for (const f of SYNC) {
+        if (recusadas.has(f.aba)) continue;
         const vaga = MAX_POR_LOTE - enviados.length;
         if (vaga <= 0) break;
         const pend = (await db.all(f.store)).filter(r => r.sync === 'pendente').slice(0, vaga);
         if (!pend.length) continue;
         abas[f.aba] = { colunas: f.colunas, linhas: pend.map(f.linha) };
-        for (const r of pend) enviados.push([f.store, r.id, r.rev]);
+        for (const r of pend) enviados.push([f.store, r.id, r.rev, f.aba]);
       }
       if (!enviados.length) break;
       const j = await postar(c.url, { codigo: c.codigo, abas });
       if (!j.ok) throw new Error(j.erro || 'A planilha recusou o envio.');
-      for (const [store, id, rev] of enviados) {
+      const aceitas = j.gravadas || ABAS_SCRIPT_ANTIGO;
+      for (const [store, id, rev, aba] of enviados) {
+        if (!aceitas.includes(aba)) { recusadas.add(aba); continue; } // continua pendente até o script ser atualizado
         const r = await db.get(store, id);
         if (!r || r.rev !== rev) continue; // foi alterado durante o envio: vai no próximo
         if (r.excluido) await db.del(store, id); // a planilha já apagou a linha; o celular também apaga
@@ -100,6 +106,11 @@ export async function enviarAgora() {
       total += enviados.length;
     }
     if (total) await setCfg('ultimoEnvio', Date.now());
+    if (recusadas.size) {
+      const msg = `O script da planilha está desatualizado (não recebe ${[...recusadas].join(', ')}): publique a versão nova.`;
+      await setCfg('ultimoErro', { msg, quando: Date.now() });
+      return { ok: false, msg, total };
+    }
     await setCfg('ultimoErro', null);
     return { ok: true, total };
   } catch (e) {

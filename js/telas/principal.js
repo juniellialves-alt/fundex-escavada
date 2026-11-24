@@ -83,6 +83,7 @@ function telaSemObra() {
         h('button', { class: 'btn btn-cinza', onclick: () => nav.go('lista') }, h('span', { class: 'ico' }, '📋'), 'Lista de estacas'),
         h('button', { class: 'btn btn-cinza', onclick: () => nav.go('producao') }, h('span', { class: 'ico' }, '📊'), 'Produção'),
         h('button', { class: 'btn btn-cinza', onclick: () => nav.go('usuarios') }, h('span', { class: 'ico' }, '👥'), 'Usuários'),
+        h('button', { class: 'btn btn-cinza', onclick: () => nav.go('maquinas') }, h('span', { class: 'ico' }, '🚜'), 'Máquinas'),
         h('button', { class: 'btn btn-cinza', onclick: () => nav.go('config') }, h('span', { class: 'ico' }, '⚙'), 'Configuração')),
       sync.el,
       h('div', { class: 'versao' }, `Versão ${VERSAO}`)));
@@ -181,7 +182,8 @@ registrarTela('principal', async () => {
         h('button', { class: 'btn btn-cinza', onclick: () => nav.go('estaca', { modo: 'manual' }) }, h('span', { class: 'ico' }, '✍️'), 'Lançar estaca manual'),
         h('button', { class: 'btn btn-cinza', onclick: () => nav.go('ocorrencias') }, h('span', { class: 'ico' }, '⚠️'), 'Ocorrências do dia'),
         h('button', { class: 'btn btn-cinza', onclick: () => nav.go('producao') }, h('span', { class: 'ico' }, '📊'), A.ehAdm() ? 'Produção' : 'Minha produção'),
-        A.ehAdm() ? h('button', { class: 'btn btn-cinza', onclick: () => nav.go('usuarios') }, h('span', { class: 'ico' }, '👥'), 'Usuários') : null),
+        A.ehAdm() ? h('button', { class: 'btn btn-cinza', onclick: () => nav.go('usuarios') }, h('span', { class: 'ico' }, '👥'), 'Usuários') : null,
+        A.ehAdm() ? h('button', { class: 'btn btn-cinza', onclick: () => nav.go('maquinas') }, h('span', { class: 'ico' }, '🚜'), 'Máquinas') : null),
       sync.el,
       h('div', { class: 'versao' }, `Versão ${VERSAO}`)));
 });

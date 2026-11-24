@@ -1,5 +1,6 @@
 // Formulário da estaca: finalizar (cronômetro), lançar manual e editar.
-import { h, nav, registrarTela, topo, toast, mostrarErros, campo, confirmar, pedirSenha, editorAjudantes } from '../ui.js';
+import { h, nav, registrarTela, topo, toast, mostrarErros, campo, confirmar, pedirSenha, editorAjudantes, seletorMaquina } from '../ui.js';
+import * as M from '../maquinas.js';
 import * as S from '../store.js';
 import * as U from '../util.js';
 import { getCfg } from '../db.js';
@@ -92,7 +93,7 @@ registrarTela('estaca', async ({ modo = 'manual', id }) => {
   }
   // só o Adm troca o operador de uma estaca
   const fOper = h('input', { class: 'campo', value: base.operador || '', disabled: dis || !A.ehAdm() });
-  const fMaq = h('input', { class: 'campo', value: base.maquina || '', disabled: dis });
+  const maq = seletorMaquina(base.maquina || '', dis ? [] : await M.nomesMaquinas(), { disabled: dis });
   const ajud = editorAjudantes(base.ajudantes || [], { disabled: dis, sugestoes: dis ? [] : await A.nomesAjudantes() });
 
   const dado = (k, v, largo) => h('div', { class: 'dado' + (largo ? ' largo' : '') }, h('div', { class: 'k' }, k), h('div', { class: 'v' }, v || '—'));
@@ -122,7 +123,7 @@ registrarTela('estaca', async ({ modo = 'manual', id }) => {
       if (data && fIni.value && fFim.value) { inicio = U.toTs(data, fIni.value); fim = U.toTs(data, fFim.value); }
       if (inicio && fim > Date.now() + 60000) e.push('O término não pode ser no futuro.');
     }
-    if (modo === 'editar' && (!fOper.value.trim() || !fMaq.value.trim())) e.push('Informe operador e máquina.');
+    if (modo === 'editar' && (!fOper.value.trim() || !maq.ler())) e.push('Informe operador e máquina.');
     mostrarErros(erros, e);
     if (e.length) return;
 
@@ -143,7 +144,7 @@ registrarTela('estaca', async ({ modo = 'manual', id }) => {
         toast(`Estaca ${nome} lançada`);
         nav.back();
       } else {
-        const novo = { ...antigo, ...dados, operador: fOper.value.trim(), ajudantes: ajud.ler(), maquina: fMaq.value.trim() };
+        const novo = { ...antigo, ...dados, operador: fOper.value.trim(), ajudantes: ajud.ler(), maquina: maq.ler() };
         if (novo.operador !== antigo.operador) delete novo.operadorId; // Adm trocou o operador: passa a valer o nome
         await S.editarEstaca(antigo, novo);
         toast('Alterações salvas');
@@ -194,7 +195,7 @@ registrarTela('estaca', async ({ modo = 'manual', id }) => {
     campo('Obra', fObra),
     h('div', { class: 'conferencia-box dados-compactos' }, dado('Operador', ativo.operador), dado('Máquina', ativo.maquina),
       ativo.ajudantes.length ? dado('Ajudante(s)', S.fmtAjudantes(ativo.ajudantes), true) : null),
-  ] : modo === 'editar' ? [campo('Obra', fObra), campo('Operador', fOper), ajud.el, campo('Máquina', fMaq)] : [];
+  ] : modo === 'editar' ? [campo('Obra', fObra), campo('Operador', fOper), maq.el, ajud.el] : [];
 
   const botoes = [];
   if (somenteLeitura) { /* sem botões */ }

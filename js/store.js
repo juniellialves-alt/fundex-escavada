@@ -61,7 +61,8 @@ export async function salvarDadosObra(d) {
     endereco: (d.endereco || '').trim(), usadaEm: Date.now(),
   });
   await db.put('obras', obra);
-  await setCfg('ativo', { obraId: obra.id, maquina: d.maquina.trim(), ajudantes: d.ajudantes || [] });
+  // maquinaDe: quem escolheu a máquina (num celular compartilhado, o próximo operador começa com a máquina dele)
+  await setCfg('ativo', { obraId: obra.id, maquina: d.maquina.trim(), maquinaDe: sessao() && sessao().id, ajudantes: d.ajudantes || [] });
   avisar();
 }
 
@@ -215,7 +216,7 @@ export function resumir(estacas) {
 
 export async function contarPendentes() {
   let n = 0;
-  for (const s of ['estacas', 'ocorrencias', 'conferencias', 'alteracoes', 'usuarios']) {
+  for (const s of ['estacas', 'ocorrencias', 'conferencias', 'alteracoes', 'usuarios', 'maquinas']) {
     n += (await db.all(s)).filter(r => r.sync === 'pendente').length;
   }
   return n;

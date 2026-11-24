@@ -170,6 +170,18 @@ select.campo { appearance: auto; }
 .linha-ajudante .campo { flex: 1; min-width: 0; }
 .linha-ajudante .btn-icone { min-height: 60px; min-width: 60px; font-size: 24px; color: var(--vermelho-forte); }
 
+/* Escolha por toque: máquina e ajudantes */
+.grade-opcoes { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 8px; }
+.grade-opcoes .opcao {
+  min-height: 58px; padding: 6px 10px; border-radius: 12px; border: 3px solid var(--grafite); background: #fff;
+  color: var(--texto); font-size: 19px; font-weight: 800; line-height: 1.15;
+}
+.grade-opcoes .opcao small { font-size: 13px; font-weight: 600; }
+.grade-opcoes .opcao.sel { background: var(--grafite); color: #fff; box-shadow: inset 0 0 0 3px var(--vermelho); }
+.grade-opcoes .opcao.sel::before { content: '✔ '; }
+.grupo > .v { font-size: 20px; font-weight: 800; padding: 4px 0; }
+.dica { font-size: 15px; color: #555; margin: -2px 0 2px; }
+
 .grade-diam { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
 .grade-diam button {
   min-height: 62px; border-radius: 12px; border: 3px solid var(--grafite); background: #fff;

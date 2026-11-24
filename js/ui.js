@@ -166,28 +166,83 @@ export function mostrarErros(caixa, erros) {
   if (erros.length) caixa.scrollIntoView({ behavior: 'smooth', block: 'center' });
 }
 
-/** Lista de ajudantes: um campo por ajudante, com "+ Adicionar ajudante" e ✕ para remover. */
-let nDatalist = 0;
+/**
+ * Escolha da máquina tocando num botão (sem digitar, para não ter nomes diferentes na planilha).
+ * opcoes: nomes das máquinas cadastradas. Um valor antigo que não está no cadastro aparece marcado com "(antiga)".
+ * Sem máquinas cadastradas neste celular, vira um campo de texto (para não travar o trabalho).
+ */
+export function seletorMaquina(atual = '', opcoes = [], { disabled = false, rotulo = 'Máquina', obrig = false } = {}) {
+  const tit = h('span', { class: 'rotulo' }, rotulo, obrig ? h('span', { class: 'obrig' }, ' *') : null);
+  if (disabled) {
+    return { el: h('div', { class: 'grupo' }, tit, h('div', { class: 'v' }, atual || '—')), ler: () => atual || '' };
+  }
+  if (!opcoes.length) {
+    const inp = h('input', { class: 'campo', value: atual || '', autocapitalize: 'characters', autocomplete: 'off' });
+    return {
+      el: h('label', { class: 'grupo' }, tit, inp,
+        h('div', { class: 'dica' }, 'Nenhuma máquina cadastrada neste celular. O Adm cadastra em 🚜 Máquinas.')),
+      ler: () => inp.value.trim().replace(/\s+/g, ' ').toUpperCase(),
+    };
+  }
+  let valor = atual || '';
+  const lista = [...opcoes];
+  if (valor && !lista.includes(valor)) lista.push(valor);
+  const botoes = lista.map(n => {
+    const b = h('button', { type: 'button', class: 'opcao' }, n, opcoes.includes(n) ? null : h('small', null, ' (antiga)'));
+    b.onclick = () => { valor = n; marcar(); };
+    return [b, n];
+  });
+  const marcar = () => botoes.forEach(([b, n]) => { b.classList.toggle('sel', n === valor); b.setAttribute('aria-pressed', n === valor); });
+  marcar();
+  return { el: h('div', { class: 'grupo' }, tit, h('div', { class: 'grade-opcoes' }, botoes.map(b => b[0]))), ler: () => valor };
+}
+
+/**
+ * Ajudantes: com ajudantes cadastrados, o operador só toca nos nomes (um ou vários).
+ * Nomes antigos que não estão no cadastro continuam aparecendo marcados e podem ser desmarcados.
+ * Sem ajudantes cadastrados neste celular, volta a ser digitado (um campo por ajudante).
+ */
 export function editorAjudantes(inicial = [], { disabled = false, sugestoes = [] } = {}) {
+  const nomesIniciais = (inicial || []).filter(Boolean);
+  const tit = h('span', { class: 'rotulo' }, 'Ajudante(s)');
+  if (disabled) {
+    return { el: h('div', { class: 'grupo' }, tit, h('div', { class: 'v' }, nomesIniciais.join(', ') || '—')), ler: () => nomesIniciais };
+  }
+  if (sugestoes.length) {
+    const sel = new Set(nomesIniciais);
+    const lista = [...sugestoes, ...nomesIniciais.filter(n => !sugestoes.includes(n))];
+    const botoes = lista.map(n => {
+      const b = h('button', { type: 'button', class: 'opcao' }, n, sugestoes.includes(n) ? null : h('small', null, ' (antigo)'));
+      b.onclick = () => { if (sel.has(n)) sel.delete(n); else sel.add(n); marcar(); };
+      return [b, n];
+    });
+    const marcar = () => botoes.forEach(([b, n]) => { b.classList.toggle('sel', sel.has(n)); b.setAttribute('aria-pressed', sel.has(n)); });
+    marcar();
+    return {
+      el: h('div', { class: 'grupo' }, tit, h('div', { class: 'dica' }, 'Toque em quem está trabalhando com você (pode ser mais de um).'),
+        h('div', { class: 'grade-opcoes' }, botoes.map(b => b[0]))),
+      ler: () => lista.filter(n => sel.has(n)),
+    };
+  }
+  return editorAjudantesDigitado(nomesIniciais);
+}
+
+function editorAjudantesDigitado(nomes) {
   const lista = h('div', { class: 'lista-ajudantes' });
-  // Sugere os ajudantes cadastrados, mas aceita qualquer nome
-  const idLista = sugestoes.length ? `ajudantes-${++nDatalist}` : null;
-  const datalist = idLista ? h('datalist', { id: idLista }, sugestoes.map(n => h('option', { value: n }))) : null;
+  const disabled = false;
   const linha = (valor = '') => {
     const row = h('div', { class: 'linha-ajudante' },
-      h('input', { class: 'campo', value: valor, autocapitalize: 'words', autocomplete: 'off', placeholder: 'Nome do ajudante', disabled, 'aria-label': 'Nome do ajudante', list: idLista }),
+      h('input', { class: 'campo', value: valor, autocapitalize: 'words', autocomplete: 'off', placeholder: 'Nome do ajudante', disabled, 'aria-label': 'Nome do ajudante' }),
       h('button', { type: 'button', class: 'btn-icone', 'aria-label': 'Remover ajudante', disabled, onclick: () => row.remove() }, '✕'));
     return row;
   };
-  const nomes = (inicial || []).filter(Boolean);
-  (nomes.length ? nomes : (disabled ? [] : [''])).forEach(v => lista.append(linha(v)));
-  const add = disabled ? null : h('button', {
+  (nomes.length ? nomes : ['']).forEach(v => lista.append(linha(v)));
+  const add = h('button', {
     type: 'button', class: 'btn btn-cinza btn-medio',
     onclick: () => { const r = linha(); lista.append(r); r.querySelector('input').focus(); },
   }, '+ Adicionar ajudante');
   return {
-    el: h('div', { class: 'grupo' }, h('span', { class: 'rotulo' }, 'Ajudante(s)'),
-      disabled && !nomes.length ? h('div', { class: 'v' }, '—') : null, lista, datalist, add),
+    el: h('div', { class: 'grupo' }, h('span', { class: 'rotulo' }, 'Ajudante(s)'), lista, add),
     ler: () => [...lista.querySelectorAll('input')].map(i => i.value.trim()).filter(Boolean),
   };
 }

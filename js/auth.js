@@ -4,7 +4,7 @@ import { db, getCfg, setCfg } from './db.js';
 import * as U from './util.js';
 
 // Hash SHA-256 da senha do escritório (conta mestre "admin"). A senha em si não fica no código.
-const SENHA_MESTRE_HASH = 'ca48d10b743d65358e78c30f190f23c936dca1721648df04762e5ed40fe5587d';
+const SENHA_MESTRE_HASH = '86b85dc0a7e39252ac3c3a48cd2ed4b306afd34c94712e0e2b1fb42378ce5c72';
 const ITERACOES = 100000;
 
 export const PERFIS = { adm: 'Adm', operador: 'Operador', ajudante: 'Ajudante' };
@@ -42,13 +42,15 @@ export async function nomesAjudantes() {
 }
 
 /** Cria ou altera um usuário. senha vazia = mantém a atual. */
-export async function salvarUsuario({ id, nome, login, perfil, senha, ativo = true }) {
+export async function salvarUsuario({ id, nome, login, perfil, senha, ativo = true, maquinaId = null }) {
   const l = normLogin(login);
   if (l === 'admin') return { ok: false, msg: 'O usuário "admin" é reservado. Escolha outro.' };
   const todos = await db.all('usuarios');
   if (todos.some(u => u.login === l && u.id !== id)) return { ok: false, msg: `Já existe um usuário "${l}".` };
   const antigo = id ? await db.get('usuarios', id) : null;
   const u = { ...(antigo || { id: U.uuid(), criadoEm: Date.now() }), nome: nome.trim(), login: l, perfil, ativo: !!ativo };
+  // máquina de costume do operador: já vem marcada na tela "Dados da obra"
+  if (perfil === 'operador' && maquinaId) u.maquinaId = maquinaId; else delete u.maquinaId;
   if (senha) { u.sal = gerarSal(); u.hash = await derivar(senha, u.sal); }
   u.rev = (u.rev || 0) + 1;
   u.atualizadoEm = Date.now();

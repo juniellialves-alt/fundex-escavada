@@ -1,12 +1,12 @@
 // Service worker: guarda o app no celular para abrir e funcionar sem internet.
 // Ao publicar uma atualização, aumente a versão abaixo (e em js/versao.js).
-const CACHE = 'fundex-escavada-1.2.0';
+const CACHE = 'fundex-escavada-1.3.0';
 const ARQUIVOS = [
   './', 'index.html', 'manifest.webmanifest', 'css/app.css',
   'img/logo.svg', 'img/icone-192.png', 'img/icone-512.png', 'img/icone-maskable-512.png', 'img/apple-touch-icon.png',
   'js/app.js', 'js/ui.js', 'js/db.js', 'js/util.js', 'js/store.js', 'js/rows.js', 'js/sync.js', 'js/xlsx.js',
-  'js/exportar.js', 'js/versao.js', 'js/auth.js', 'js/inicio.js',
-  'js/telas/login.js', 'js/telas/usuarios.js', 'js/telas/principal.js', 'js/telas/obra.js', 'js/telas/conferencia.js', 'js/telas/estaca.js', 'js/telas/lista.js',
+  'js/exportar.js', 'js/versao.js', 'js/auth.js', 'js/inicio.js', 'js/maquinas.js',
+  'js/telas/login.js', 'js/telas/usuarios.js', 'js/telas/maquinas.js', 'js/telas/principal.js', 'js/telas/obra.js', 'js/telas/conferencia.js', 'js/telas/estaca.js', 'js/telas/lista.js',
   'js/telas/cartoes.js', 'js/telas/ocorrencias.js', 'js/telas/producao.js', 'js/telas/config.js',
 ];
 

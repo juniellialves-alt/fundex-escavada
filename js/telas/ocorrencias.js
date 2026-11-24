@@ -1,5 +1,6 @@
 // Ocorrências do dia (diário de obra): lista do dia e formulário rápido.
-import { h, nav, registrarTela, topo, toast, mostrarErros, campo, confirmar, pedirSenha, editorAjudantes } from '../ui.js';
+import { h, nav, registrarTela, topo, toast, mostrarErros, campo, confirmar, pedirSenha, editorAjudantes, seletorMaquina } from '../ui.js';
+import * as M from '../maquinas.js';
 import * as S from '../store.js';
 import * as U from '../util.js';
 import { cartaoOcorrencia } from './cartoes.js';
@@ -74,7 +75,7 @@ registrarTela('ocorrencia', async ({ id }) => {
     obras.map(o => h('option', { value: o.id, selected: o.id === base.obra.id ? 'selected' : null }, `${o.numero} – ${o.nome}`)));
   if (!obras.some(o => o.id === base.obra.id)) fObra.prepend(h('option', { value: base.obra.id, selected: 'selected' }, S.rotuloObra(base.obra)));
   const fOper = h('input', { class: 'campo', value: base.operador, disabled: dis || !A.ehAdm() }); // só o Adm troca o operador
-  const fMaq = h('input', { class: 'campo', value: base.maquina, disabled: dis });
+  const maq = seletorMaquina(base.maquina || '', dis ? [] : await M.nomesMaquinas(), { disabled: dis });
   const ajud = editorAjudantes(base.ajudantes || [], { disabled: dis, sugestoes: dis ? [] : await A.nomesAjudantes() });
   const erros = h('div', { class: 'erros', hidden: true });
 
@@ -89,7 +90,7 @@ registrarTela('ocorrencia', async ({ id }) => {
     else if (data > hoje) e.push('Não é permitido data futura.');
     else if (!desbloqueada && U.diffDays(data, hoje) > S.PRAZO_DIAS) e.push(`A data não pode ter mais de ${S.PRAZO_DIAS} dias.`);
     if (fIni.value && fFim.value && U.hmDiff(fIni.value, fFim.value) <= 0) e.push('O término precisa ser depois do início.');
-    if (!fOper.value.trim() || !fMaq.value.trim()) e.push('Informe operador e máquina.');
+    if (!fOper.value.trim() || !maq.ler()) e.push('Informe operador e máquina.');
     mostrarErros(erros, e);
     if (e.length) return;
     salvando = true;
@@ -98,7 +99,7 @@ registrarTela('ocorrencia', async ({ id }) => {
       const novo = {
         ...(antigo || {}), tipo, responsabilidade: resp, outros: S.ehOutros(tipo) ? fOutros.value.trim() : '',
         data, inicio: fIni.value, fim: fFim.value, complemento: fCompl.value.trim(),
-        obra, operador: fOper.value.trim(), operadorId: base.operadorId, ajudantes: ajud.ler(), maquina: fMaq.value.trim(),
+        obra, operador: fOper.value.trim(), operadorId: base.operadorId, ajudantes: ajud.ler(), maquina: maq.ler(),
       };
       if (!novo.operadorId || novo.operador !== base.operador) delete novo.operadorId; // vale o nome
       await S.salvarOcorrencia(novo, antigo);
@@ -142,7 +143,8 @@ registrarTela('ocorrencia', async ({ id }) => {
         h('div', { class: 'dado' }, h('div', { class: 'k' }, 'Tempo parado'), parado),
         campo('Complemento', fCompl),
         campo('Obra', fObra),
-        h('div', { class: 'linha-2' }, campo('Operador', fOper), campo('Máquina', fMaq)),
+        campo('Operador', fOper),
+        maq.el,
         ajud.el,
         erros,
         acoes)));

@@ -1,10 +1,14 @@
 // Tela "Dados da obra": cliente, obra, endereço, nº, operador e máquina.
 import { h, nav, registrarTela, topo, toast, mostrarErros, campo, editorAjudantes } from '../ui.js';
 import * as S from '../store.js';
+import * as A from '../auth.js';
+import { getCfg } from '../db.js';
 
 registrarTela('obra', async ({ primeira = false, depois = null }) => {
+  if (!A.podeOperar()) { setTimeout(() => nav.back()); return h('div'); }
   const ativo = await S.getAtivo();
-  const cfgAtivo = ativo || {};
+  // mantém máquina e ajudantes já usados neste celular, mesmo que a obra ainda não esteja definida
+  const cfgAtivo = ativo || (await getCfg('ativo')) || {};
   const obras = await S.listarObras();
   const ob = cfgAtivo.obra || {};
 
@@ -14,10 +18,9 @@ registrarTela('obra', async ({ primeira = false, depois = null }) => {
     cliente: inp(ob.cliente, { autocapitalize: 'words' }),
     nome: inp(ob.nome, { autocapitalize: 'words', placeholder: 'Ex.: Galpão SIA' }),
     endereco: inp(ob.endereco),
-    operador: inp(cfgAtivo.operador, { autocapitalize: 'words' }),
     maquina: inp(cfgAtivo.maquina, { autocapitalize: 'characters' }),
   };
-  const ajud = editorAjudantes(cfgAtivo.ajudantes || []);
+  const ajud = editorAjudantes(cfgAtivo.ajudantes || [], { sugestoes: await A.nomesAjudantes() });
   const erros = h('div', { class: 'erros', hidden: true });
 
   // Lista de obras já cadastradas
@@ -52,7 +55,6 @@ registrarTela('obra', async ({ primeira = false, depois = null }) => {
     if (!v.numero) e.push('Informe o Nº da obra.');
     if (!v.cliente) e.push('Informe o Cliente.');
     if (!v.nome) e.push('Informe o nome da Obra.');
-    if (!v.operador) e.push('Informe o nome do Operador.');
     if (!v.maquina) e.push('Informe a Máquina.');
     mostrarErros(erros, e);
     if (e.length) return;
@@ -67,7 +69,7 @@ registrarTela('obra', async ({ primeira = false, depois = null }) => {
     topo('Dados da obra', { voltar: !primeira }),
     h('div', { class: 'tela' },
       primeira ? h('div', { class: 'aviso aviso-info', style: { marginTop: '14px' } },
-        'Bem-vindo! Preencha os dados da obra, do operador e da máquina. Eles ficam salvos no celular.') : null,
+        `Bem-vindo, ${A.sessao().nome}! Preencha os dados da obra, da máquina e dos ajudantes. Eles ficam salvos no celular.`) : null,
       depois === 'conferencia' ? h('div', { class: 'aviso aviso-info', style: { marginTop: '14px' } },
         'Corrija o que mudou e toque em SALVAR. Depois você confere e inicia a estaca.') : null,
       listaObras,
@@ -78,9 +80,13 @@ registrarTela('obra', async ({ primeira = false, depois = null }) => {
         campo(['Obra', ob1.cloneNode(true)], f.nome),
         campo('Endereço', f.endereco),
         h('div', { class: 'secao-titulo', style: { margin: '8px 0 0' } }, 'Equipe'),
-        campo(['Operador (nome)', ob1.cloneNode(true)], f.operador),
+        h('div', { class: 'dado' }, h('div', { class: 'k' }, 'Operador'), h('div', { class: 'v' }, A.sessao().nome)),
         ajud.el,
         campo(['Máquina (nome/identificação)', ob1.cloneNode(true)], f.maquina),
         erros,
-        h('button', { class: 'btn btn-verde btn-gigante', onclick: salvar }, 'SALVAR'))));
+        h('button', { class: 'btn btn-verde btn-gigante', onclick: salvar }, 'SALVAR'),
+        primeira ? h('button', {
+          class: 'link-discreto', type: 'button',
+          onclick: async () => { await A.sair(); nav.reset('login'); },
+        }, `Não é ${A.sessao().nome}? Sair`) : null)));
 });

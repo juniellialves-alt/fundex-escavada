@@ -1,23 +1,44 @@
-// Minha produção: acompanhamento mensal do operador cadastrado no aparelho.
+// Produção mensal. Operador: só a dele. Adm e Ajudante: escolhem o operador (ou todos).
 import { h, nav, registrarTela, topo } from '../ui.js';
 import * as S from '../store.js';
 import * as U from '../util.js';
 import { cartaoEstaca, cartaoOcorrencia, blocoResumo } from './cartoes.js';
 import { exportarArquivo } from '../exportar.js';
+import * as A from '../auth.js';
 
 let mesSel = null; // guardado enquanto o app estiver aberto
+const escolha = { dono: null, operador: '' }; // operador = nome normalizado; '' = todos
+
+/** Ajudante começa vendo o operador com quem trabalhou por último. */
+function operadorPadrao(est) {
+  if (!A.ehAjudante()) return '';
+  const eu = U.norm(A.sessao().nome);
+  const ultima = est.find(e => (e.ajudantes || []).some(n => U.norm(n) === eu)); // est vem da mais nova para a mais antiga
+  return ultima ? U.norm(ultima.operador) : '';
+}
 
 async function dadosDoOperador() {
-  const ativo = await S.getAtivo();
-  const op = U.norm(ativo.operador);
-  const [est, oc] = await Promise.all([S.listarEstacas(), S.listarOcorrencias()]);
-  return { ativo, est: est.filter(e => U.norm(e.operador) === op), oc: oc.filter(o => U.norm(o.operador) === op) };
+  const [todasE, todasO] = await Promise.all([S.listarEstacas(), S.listarOcorrencias()]);
+  const s = A.sessao();
+  if (s.perfil === 'operador') {
+    return { titulo: 'Minha produção', nomeOper: s.nome, escolhe: false, est: todasE.filter(S.ehMeu), oc: todasO.filter(S.ehMeu) };
+  }
+  const nomes = new Map();
+  for (const r of [...todasE, ...todasO]) if (r.operador && !nomes.has(U.norm(r.operador))) nomes.set(U.norm(r.operador), r.operador);
+  if (escolha.dono !== s.id) Object.assign(escolha, { dono: s.id, operador: operadorPadrao(todasE) });
+  if (escolha.operador && !nomes.has(escolha.operador)) escolha.operador = '';
+  const filtro = r => !escolha.operador || U.norm(r.operador) === escolha.operador;
+  return {
+    titulo: 'Produção', escolhe: true, nomes,
+    nomeOper: escolha.operador ? nomes.get(escolha.operador) : 'Todos os operadores',
+    est: todasE.filter(filtro), oc: todasO.filter(filtro),
+  };
 }
 
 const total = (num, lbl, classe = '') => h('div', { class: 'total ' + classe }, h('div', { class: 'num' }, num), h('div', { class: 'lbl' }, lbl));
 
 registrarTela('producao', async () => {
-  const { ativo, est: todasE, oc: todasO } = await dadosDoOperador();
+  const { titulo, nomeOper, escolhe, nomes, est: todasE, oc: todasO } = await dadosDoOperador();
   const mesAtual = U.monthOf(U.today());
   if (!mesSel) mesSel = mesAtual;
 
@@ -48,24 +69,35 @@ registrarTela('producao', async () => {
   });
   const maxM = Math.max(1, ...linhasDia.map(l => l.metros));
 
-  // por obra
+  // por obra (a mesma obra = mesmo Nº da obra)
   const porObra = new Map();
   for (const e of est) {
-    const x = porObra.get(e.obra.id) || { rotulo: S.rotuloObra(e.obra), qtd: 0, metros: 0 };
-    x.qtd++; x.metros += e.profundidade; porObra.set(e.obra.id, x);
+    const k = S.chaveObra(e.obra);
+    const x = porObra.get(k) || { rotulo: S.rotuloObra(e.obra), qtd: 0, metros: 0 };
+    x.qtd++; x.metros += e.profundidade; porObra.set(k, x);
   }
 
   const mudarMes = n => { mesSel = U.addMonths(mesSel, n); nav.refresh(); };
 
+  const seletorOper = escolhe ? (() => {
+    const s = h('select', { class: 'campo', 'aria-label': 'Operador' },
+      h('option', { value: '' }, 'Todos os operadores'),
+      [...nomes.entries()].sort((a, b) => a[1].localeCompare(b[1], 'pt-BR'))
+        .map(([k, n]) => h('option', { value: k, selected: k === escolha.operador ? 'selected' : null }, n)));
+    s.addEventListener('change', () => { escolha.operador = s.value; nav.refresh(); });
+    return h('label', { class: 'grupo', style: { marginBottom: '10px' } }, h('span', { class: 'rotulo' }, 'Operador'), s);
+  })() : null;
+
   return h('div', null,
-    topo('Minha produção'),
+    topo(titulo),
     h('div', { class: 'tela' },
+      seletorOper,
       h('div', { class: 'seletor-mes' },
         h('button', { class: 'btn btn-escuro', 'aria-label': 'Mês anterior', onclick: () => mudarMes(-1) }, '◀'),
         h('div', { class: 'mes' }, U.fmtMonth(mesSel)),
         h('button', { class: 'btn btn-escuro', 'aria-label': 'Próximo mês', disabled: mesSel >= mesAtual, onclick: () => mudarMes(1) }, '▶')),
       h('div', { style: { fontWeight: 700, color: 'var(--texto-2)', marginBottom: '10px' } },
-        `Operador: ${ativo.operador}`, mesSel === mesAtual ? ` · do dia 1º até hoje` : ''),
+        `Operador: ${nomeOper}`, mesSel === mesAtual ? ` · do dia 1º até hoje` : ''),
 
       h('div', { class: 'totais' },
         total(String(res.qtd), 'estacas'),
@@ -78,7 +110,7 @@ registrarTela('producao', async () => {
       h('div', { class: 'espaco' }),
       h('button', {
         class: 'btn btn-escuro btn-medio',
-        onclick: () => exportarArquivo({ estacas: est, ocorrencias: oc, nome: `Fundex_Producao_${mesSel}_${ativo.operador}` }),
+        onclick: () => exportarArquivo({ estacas: est, ocorrencias: oc, nome: `Fundex_Producao_${mesSel}_${nomeOper}` }),
       }, '⇪ Exportar Excel do mês'),
 
       h('div', { class: 'secao-titulo' }, 'Por diâmetro'),

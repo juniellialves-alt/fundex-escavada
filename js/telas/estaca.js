@@ -3,6 +3,7 @@ import { h, nav, registrarTela, topo, toast, mostrarErros, campo, confirmar, ped
 import * as S from '../store.js';
 import * as U from '../util.js';
 import { getCfg } from '../db.js';
+import * as A from '../auth.js';
 
 const TITULOS = { cronometro: 'Dados da estaca', manual: 'Lançar estaca manual', editar: 'Estaca' };
 
@@ -52,9 +53,11 @@ registrarTela('estaca', async ({ modo = 'manual', id }) => {
     antigo = await S.getEstaca(id);
     if (!antigo || antigo.excluido) { setTimeout(() => nav.back()); return h('div'); }
   }
-  const travada = modo === 'editar' && S.travado(antigo);
-  const desbloqueada = modo === 'editar' && S.bloqueado(antigo) && !travada;
-  const dis = travada;
+  if (modo !== 'editar' && !ativo) { setTimeout(() => nav.reset('principal')); return h('div'); }
+  const somenteLeitura = modo === 'editar' && !S.podeEditar(antigo); // estaca de outro operador (ou Ajudante)
+  const travada = modo === 'editar' && !somenteLeitura && S.travado(antigo);
+  const desbloqueada = modo === 'editar' && S.bloqueado(antigo) && !travada && !somenteLeitura;
+  const dis = travada || somenteLeitura;
   const hoje = U.today();
   const base = antigo || {};
   const ctx = crono ? (crono.ativo || ativo) : ativo; // dados ativos no início da estaca
@@ -87,9 +90,10 @@ registrarTela('estaca', async ({ modo = 'manual', id }) => {
   if (antigo && !obras.some(o => o.id === antigo.obra.id)) {
     fObra.prepend(h('option', { value: antigo.obra.id, selected: 'selected' }, S.rotuloObra(antigo.obra)));
   }
-  const fOper = h('input', { class: 'campo', value: base.operador || '', disabled: dis });
+  // só o Adm troca o operador de uma estaca
+  const fOper = h('input', { class: 'campo', value: base.operador || '', disabled: dis || !A.ehAdm() });
   const fMaq = h('input', { class: 'campo', value: base.maquina || '', disabled: dis });
-  const ajud = editorAjudantes(base.ajudantes || [], { disabled: dis });
+  const ajud = editorAjudantes(base.ajudantes || [], { disabled: dis, sugestoes: dis ? [] : await A.nomesAjudantes() });
 
   const dado = (k, v, largo) => h('div', { class: 'dado' + (largo ? ' largo' : '') }, h('div', { class: 'k' }, k), h('div', { class: 'v' }, v || '—'));
 
@@ -128,18 +132,19 @@ registrarTela('estaca', async ({ modo = 'manual', id }) => {
       const dados = { nome, diametro: d, profundidade: Math.round(prof * 100) / 100, observacao: fObs.value.trim(), inicio, fim, obra: obraSel };
 
       if (modo === 'cronometro') {
-        await S.criarEstaca({ ...dados, operador: ctx.operador, ajudantes: ctx.ajudantes || [], maquina: ctx.maquina, manual: false });
+        await S.criarEstaca({ ...dados, operador: ctx.operador, operadorId: ctx.operadorId || A.sessao().id, ajudantes: ctx.ajudantes || [], maquina: ctx.maquina, manual: false });
         await S.limparCrono();
         toast(`Estaca ${nome} salva`);
         nav.reset('principal');
       } else if (modo === 'manual') {
         const conflito = await S.sobreposicao({ id: null, inicio, fim, maquina: ativo.maquina });
         if (conflito && !(await confirmar(`Já existe a estaca ${conflito.nome} nesse horário. Salvar mesmo assim?`, { sim: 'SALVAR', nao: 'VOLTAR' }))) return;
-        await S.criarEstaca({ ...dados, operador: ativo.operador, ajudantes: ativo.ajudantes || [], maquina: ativo.maquina, manual: true });
+        await S.criarEstaca({ ...dados, operador: ativo.operador, operadorId: ativo.operadorId, ajudantes: ativo.ajudantes || [], maquina: ativo.maquina, manual: true });
         toast(`Estaca ${nome} lançada`);
         nav.back();
       } else {
         const novo = { ...antigo, ...dados, operador: fOper.value.trim(), ajudantes: ajud.ler(), maquina: fMaq.value.trim() };
+        if (novo.operador !== antigo.operador) delete novo.operadorId; // Adm trocou o operador: passa a valer o nome
         await S.editarEstaca(antigo, novo);
         toast('Alterações salvas');
         nav.back();
@@ -156,7 +161,7 @@ registrarTela('estaca', async ({ modo = 'manual', id }) => {
   }
 
   async function desbloquear() {
-    if (await pedirSenha(S.senhaOk, 'Desbloquear estaca')) { S.desbloqueados.add(antigo.id); toast('Estaca desbloqueada'); nav.refresh(); }
+    if (await pedirSenha(S.senhaOk, 'Desbloquear estaca – senha de um Adm')) { S.desbloqueados.add(antigo.id); toast('Estaca desbloqueada'); nav.refresh(); }
   }
 
   // ---- montagem ----
@@ -170,10 +175,12 @@ registrarTela('estaca', async ({ modo = 'manual', id }) => {
       dado('Data', U.fmtDate(U.dateOf(crono.inicio))), dado('Duração', U.fmtDur((crono.fim - crono.inicio) / 1000)),
       dado('Início', U.timeOf(crono.inicio, true)), dado('Término', U.timeOf(crono.fim, true))));
   }
-  if (travada) {
+  if (somenteLeitura) {
+    blocoTopo.push(h('div', { class: 'aviso aviso-info' }, `👁 Estaca de ${antigo.operador}: somente consulta`));
+  } else if (travada) {
     blocoTopo.push(h('div', { class: 'aviso aviso-bloqueio' }, '🔒 Estaca bloqueada para edição (mais de 3 dias)'));
   } else if (desbloqueada) {
-    blocoTopo.push(h('div', { class: 'aviso aviso-info' }, '🔓 Estaca desbloqueada pelo escritório'));
+    blocoTopo.push(h('div', { class: 'aviso aviso-info' }, A.ehAdm() ? '🔓 Estaca com mais de 3 dias (Adm pode alterar)' : '🔓 Estaca desbloqueada pelo Adm'));
   }
   if (modo === 'editar' && antigo.manual) blocoTopo.push(h('div', { class: 'aviso aviso-info' }, 'Lançamento manual (tempo não cronometrado)'));
 
@@ -190,7 +197,8 @@ registrarTela('estaca', async ({ modo = 'manual', id }) => {
   ] : modo === 'editar' ? [campo('Obra', fObra), campo('Operador', fOper), ajud.el, campo('Máquina', fMaq)] : [];
 
   const botoes = [];
-  if (travada) botoes.push(h('button', { class: 'btn btn-escuro btn-medio', onclick: desbloquear }, '🔓 Desbloquear (escritório)'));
+  if (somenteLeitura) { /* sem botões */ }
+  else if (travada) botoes.push(h('button', { class: 'btn btn-escuro btn-medio', onclick: desbloquear }, '🔓 Desbloquear (Adm)'));
   else {
     botoes.push(h('button', { class: 'btn btn-verde btn-gigante', onclick: salvar }, 'SALVAR'));
     if (modo === 'editar') botoes.push(h('button', { class: 'btn btn-perigo btn-medio', onclick: excluir }, '🗑 Excluir estaca'));

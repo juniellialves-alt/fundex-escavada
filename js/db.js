@@ -1,7 +1,7 @@
 // Banco de dados local (IndexedDB). Tudo fica salvo no celular.
 const DB_NAME = 'fundex-escavada';
-const VERSAO = 1;
-export const STORES = ['config', 'obras', 'estacas', 'ocorrencias', 'conferencias', 'alteracoes'];
+const VERSAO = 2; // 2: usuários
+export const STORES = ['config', 'obras', 'estacas', 'ocorrencias', 'conferencias', 'alteracoes', 'usuarios'];
 
 let dbp = null;
 function abrir() {

@@ -167,11 +167,15 @@ export function mostrarErros(caixa, erros) {
 }
 
 /** Lista de ajudantes: um campo por ajudante, com "+ Adicionar ajudante" e ✕ para remover. */
-export function editorAjudantes(inicial = [], { disabled = false } = {}) {
+let nDatalist = 0;
+export function editorAjudantes(inicial = [], { disabled = false, sugestoes = [] } = {}) {
   const lista = h('div', { class: 'lista-ajudantes' });
+  // Sugere os ajudantes cadastrados, mas aceita qualquer nome
+  const idLista = sugestoes.length ? `ajudantes-${++nDatalist}` : null;
+  const datalist = idLista ? h('datalist', { id: idLista }, sugestoes.map(n => h('option', { value: n }))) : null;
   const linha = (valor = '') => {
     const row = h('div', { class: 'linha-ajudante' },
-      h('input', { class: 'campo', value: valor, autocapitalize: 'words', autocomplete: 'off', placeholder: 'Nome do ajudante', disabled, 'aria-label': 'Nome do ajudante' }),
+      h('input', { class: 'campo', value: valor, autocapitalize: 'words', autocomplete: 'off', placeholder: 'Nome do ajudante', disabled, 'aria-label': 'Nome do ajudante', list: idLista }),
       h('button', { type: 'button', class: 'btn-icone', 'aria-label': 'Remover ajudante', disabled, onclick: () => row.remove() }, '✕'));
     return row;
   };
@@ -183,7 +187,7 @@ export function editorAjudantes(inicial = [], { disabled = false } = {}) {
   }, '+ Adicionar ajudante');
   return {
     el: h('div', { class: 'grupo' }, h('span', { class: 'rotulo' }, 'Ajudante(s)'),
-      disabled && !nomes.length ? h('div', { class: 'v' }, '—') : null, lista, add),
+      disabled && !nomes.length ? h('div', { class: 'v' }, '—') : null, lista, datalist, add),
     ler: () => [...lista.querySelectorAll('input')].map(i => i.value.trim()).filter(Boolean),
   };
 }

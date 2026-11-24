@@ -52,6 +52,30 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .cab-principal img { height: 54px; width: auto; }
 .cab-principal .titulo-app { font-weight: 800; font-size: 17px; color: var(--grafite); line-height: 1.1; }
 .cab-principal .engrenagem { margin-left: auto; }
+.cab-principal .titulo-app { min-width: 0; overflow-wrap: anywhere; }
+.cab-principal .titulo-app .quem { font-size: 18px; }
+.acoes-cab { margin-left: auto; display: flex; gap: 8px; flex-shrink: 0; }
+.btn-sair { font-size: 16px; font-weight: 800; padding: 0 10px; }
+
+/* ---------- Entrada (login) ---------- */
+.tela-login { max-width: 520px; margin: 0 auto; padding: 28px 16px 24px; }
+.logo-login { display: block; width: min(60vw, 240px); margin: 0 auto 6px; }
+.titulo-login { text-align: center; font-weight: 800; font-size: 22px; color: var(--grafite); margin-bottom: 18px; }
+
+/* ---------- Usuários ---------- */
+.grade-perfil { display: grid; gap: 10px; }
+.opcao-perfil {
+  display: flex; flex-direction: column; align-items: flex-start; gap: 2px; text-align: left;
+  min-height: 64px; padding: 10px 14px; border-radius: var(--raio); border: 3px solid var(--grafite);
+  background: #fff; color: var(--texto); font-size: 16px;
+}
+.opcao-perfil b { font-size: 20px; }
+.opcao-perfil.sel { background: var(--grafite); color: #fff; }
+.opcao-perfil:disabled { opacity: .6; }
+.tag.perfil-adm { background: var(--vermelho-forte); }
+.tag.perfil-operador { background: var(--azul); }
+.tag.perfil-ajudante { background: var(--verde); }
+.cartao.inativo { opacity: .55; }
 
 .topo {
   position: sticky; top: 0; z-index: 10; background: var(--grafite); color: #fff;

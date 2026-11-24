@@ -2,19 +2,107 @@
 import { h, nav, onLeave, registrarTela, confirmar, toast } from '../ui.js';
 import * as S from '../store.js';
 import * as U from '../util.js';
-import { statusSync, enviarAgora } from '../sync.js';
+import { statusSync, sincronizar } from '../sync.js';
 import { VERSAO } from '../versao.js';
+import * as A from '../auth.js';
+
+/** Cabeçalho com logo, nome de quem está no app, Sair e (para o Adm) a engrenagem. */
+function cabecalho() {
+  const s = A.sessao();
+  async function sair() {
+    const c = await S.getCrono();
+    const msg = c ? 'Há uma estaca em andamento neste celular. Sair mesmo assim?\nO cronômetro continua salvo.' : `Sair do app?\nVocê está como ${s.nome}.`;
+    if (await confirmar(msg, { sim: 'SAIR', nao: 'VOLTAR', classeSim: 'btn-vermelho' })) {
+      await A.sair();
+      (await import('../inicio.js')).irParaInicio();
+    }
+  }
+  return h('header', { class: 'cab-principal' },
+    h('img', { src: 'img/logo.svg', alt: 'Fundex' }),
+    h('div', { class: 'titulo-app' }, h('span', { class: 'quem' }, s.nome), h('br'), A.PERFIS[s.perfil]),
+    h('div', { class: 'acoes-cab' },
+      A.ehAdm() ? h('button', { class: 'btn-icone', 'aria-label': 'Configuração', onclick: () => nav.go('config') }, '⚙') : null,
+      h('button', { class: 'btn-icone btn-sair', 'aria-label': 'Sair', onclick: sair }, 'Sair')));
+}
+
+/** Barra de sincronização: pendentes, última atualização e botão de reserva. */
+function barraSync() {
+  const box = h('div', { class: 'sync-barra' });
+  async function desenhar() {
+    const st = await statusSync();
+    const quando = Math.max(st.ultimoEnvio || 0, st.ultimaBaixa || 0);
+    const ultimo = quando ? `Atualizado: ${U.fmtDateTime(quando)}` : 'Ainda não sincronizado';
+    let linha1;
+    if (st.rodando) linha1 = '⇅ Sincronizando…';
+    else if (st.pendentes === 0) linha1 = '✔ Tudo enviado';
+    else linha1 = `⏳ ${st.pendentes} ${st.pendentes === 1 ? 'registro aguardando' : 'registros aguardando'} internet`;
+    const aviso = !st.configurado ? 'Planilha não configurada' : (st.erro && st.pendentes ? `Falha: ${st.erro.msg}` : '');
+    box.className = 'sync-barra ' + (st.pendentes ? 'pend' : 'ok');
+    const btn = h('button', { class: 'btn btn-escuro', disabled: st.rodando }, 'Atualizar agora');
+    btn.onclick = async () => {
+      btn.disabled = true;
+      const r = await sincronizar();
+      toast(r.ok ? `Atualizado${r.total ? ` · ${r.total} enviado(s)` : ''}${r.baixados ? ` · ${r.baixados} recebido(s)` : ''}` : r.msg);
+    };
+    box.replaceChildren(
+      h('div', { class: 'txt' }, h('b', null, linha1), h('br'), ultimo, aviso ? h('div', { style: { color: '#7A0000', fontWeight: 700 } }, aviso) : null),
+      btn);
+  }
+  desenhar();
+  const on = () => desenhar();
+  window.addEventListener('sync-status', on);
+  return { el: box, parar: () => window.removeEventListener('sync-status', on) };
+}
+
+/** Ajudante: só consulta a produção. */
+function telaAjudante() {
+  const sync = barraSync();
+  onLeave(sync.parar);
+  return h('div', null,
+    cabecalho(),
+    h('div', { class: 'tela' },
+      h('div', { class: 'aviso aviso-info', style: { marginTop: '14px' } },
+        'Você pode acompanhar a produção. As estacas são lançadas pelo operador e chegam aqui sozinhas quando há internet.'),
+      h('button', { class: 'btn btn-escuro btn-gigante', style: { marginTop: '14px' }, onclick: () => nav.go('producao') }, '📊 Ver produção'),
+      h('div', { class: 'espaco' }),
+      sync.el,
+      h('div', { class: 'versao' }, `Versão ${VERSAO}`)));
+}
+
+/** Adm sem obra definida neste celular. */
+function telaSemObra() {
+  const sync = barraSync();
+  onLeave(sync.parar);
+  return h('div', null,
+    cabecalho(),
+    h('div', { class: 'tela' },
+      h('div', { class: 'aviso aviso-info', style: { marginTop: '14px' } },
+        'Para usar o cronômetro neste celular, defina a obra, a máquina e os ajudantes.'),
+      h('button', { class: 'btn btn-verde btn-medio', style: { marginTop: '12px' }, onclick: () => nav.go('obra') }, 'Definir obra e máquina'),
+      h('div', { class: 'grade-acessos' },
+        h('button', { class: 'btn btn-cinza', onclick: () => nav.go('lista') }, h('span', { class: 'ico' }, '📋'), 'Lista de estacas'),
+        h('button', { class: 'btn btn-cinza', onclick: () => nav.go('producao') }, h('span', { class: 'ico' }, '📊'), 'Produção'),
+        h('button', { class: 'btn btn-cinza', onclick: () => nav.go('usuarios') }, h('span', { class: 'ico' }, '👥'), 'Usuários'),
+        h('button', { class: 'btn btn-cinza', onclick: () => nav.go('config') }, h('span', { class: 'ico' }, '⚙'), 'Configuração')),
+      sync.el,
+      h('div', { class: 'versao' }, `Versão ${VERSAO}`)));
+}
 
 registrarTela('principal', async () => {
+  if (!A.sessao()) { setTimeout(() => nav.reset('login')); return h('div'); }
+  if (A.ehAjudante()) return telaAjudante();
   const ativo = await S.getAtivo();
-  if (!ativo) { setTimeout(() => nav.reset('obra', { primeira: true })); return h('div'); }
+  if (!ativo) {
+    if (A.ehAdm()) return telaSemObra();
+    setTimeout(() => nav.reset('obra', { primeira: true })); return h('div');
+  }
   let crono = await S.getCrono();
 
   const tempo = h('div', { class: 'tempo', 'aria-live': 'off' });
   const info = h('div', { class: 'info' });
   const btn = h('button', { class: 'btn btn-gigante' });
   const cancelar = h('button', { class: 'link-discreto' }, 'Cancelar estaca iniciada por engano');
-  const syncBox = h('div', { class: 'sync-barra' });
+  const sync = barraSync();
   let ocupado = false;
 
   function atualizar() {
@@ -65,49 +153,23 @@ registrarTela('principal', async () => {
     }
   });
 
-  async function desenharSync() {
-    const st = await statusSync();
-    const ultimo = st.ultimoEnvio ? `Último envio: ${U.fmtDateTime(st.ultimoEnvio)}` : 'Nenhum envio ainda';
-    let linha1;
-    if (st.rodando) linha1 = '⇅ Enviando…';
-    else if (st.pendentes === 0) linha1 = '✔ Tudo enviado';
-    else linha1 = `⏳ ${st.pendentes} ${st.pendentes === 1 ? 'registro aguardando' : 'registros aguardando'} internet`;
-    const aviso = !st.configurado ? 'Planilha não configurada' : (st.erro && st.pendentes ? `Falha: ${st.erro.msg}` : '');
-    syncBox.className = 'sync-barra ' + (st.pendentes ? 'pend' : 'ok');
-    const enviar = h('button', { class: 'btn btn-escuro' }, 'Enviar agora');
-    enviar.onclick = async () => {
-      enviar.disabled = true;
-      const r = await enviarAgora();
-      toast(r.ok ? (r.total ? `${r.total} registro(s) enviado(s)` : 'Nada pendente') : r.msg);
-    };
-    syncBox.replaceChildren(
-      h('div', { class: 'txt' }, h('b', null, linha1), h('br'), ultimo, aviso ? h('div', { style: { color: '#7A0000', fontWeight: 700 } }, aviso) : null),
-      enviar);
-  }
-
   atualizar();
-  desenharSync();
   const timer = setInterval(() => { if (crono && !crono.fim) atualizar(); }, 1000);
-  const onSync = () => desenharSync();
   const onVis = async () => { if (document.visibilityState === 'visible') { crono = await S.getCrono(); atualizar(); } };
-  window.addEventListener('sync-status', onSync);
   document.addEventListener('visibilitychange', onVis);
   onLeave(() => {
     clearInterval(timer);
-    window.removeEventListener('sync-status', onSync);
+    sync.parar();
     document.removeEventListener('visibilitychange', onVis);
   });
 
   const o = ativo.obra;
   return h('div', null,
-    h('header', { class: 'cab-principal' },
-      h('img', { src: 'img/logo.svg', alt: 'Fundex' }),
-      h('div', { class: 'titulo-app' }, 'Estaca', h('br'), 'Escavada'),
-      h('button', { class: 'btn-icone engrenagem', 'aria-label': 'Configuração', onclick: () => nav.go('config') }, '⚙')),
+    cabecalho(),
     h('div', { class: 'resumo-ativo' },
       h('div', { class: 'txt' },
         h('b', null, `Obra ${o.numero} – ${o.nome}`), h('br'),
-        `Máquina: ${ativo.maquina} | Operador: ${ativo.operador}`,
+        `Máquina: ${ativo.maquina}`,
         ativo.ajudantes.length ? ` | Ajudante(s): ${S.fmtAjudantes(ativo.ajudantes)}` : ''),
       h('button', { class: 'btn-icone', 'aria-label': 'Editar dados da obra', onclick: () => nav.go('obra') }, '✏️')),
     h('div', { class: 'tela' },
@@ -118,7 +180,8 @@ registrarTela('principal', async () => {
         h('button', { class: 'btn btn-cinza', onclick: () => nav.go('lista') }, h('span', { class: 'ico' }, '📋'), 'Lista de estacas'),
         h('button', { class: 'btn btn-cinza', onclick: () => nav.go('estaca', { modo: 'manual' }) }, h('span', { class: 'ico' }, '✍️'), 'Lançar estaca manual'),
         h('button', { class: 'btn btn-cinza', onclick: () => nav.go('ocorrencias') }, h('span', { class: 'ico' }, '⚠️'), 'Ocorrências do dia'),
-        h('button', { class: 'btn btn-cinza', onclick: () => nav.go('producao') }, h('span', { class: 'ico' }, '📊'), 'Minha produção')),
-      syncBox,
+        h('button', { class: 'btn btn-cinza', onclick: () => nav.go('producao') }, h('span', { class: 'ico' }, '📊'), A.ehAdm() ? 'Produção' : 'Minha produção'),
+        A.ehAdm() ? h('button', { class: 'btn btn-cinza', onclick: () => nav.go('usuarios') }, h('span', { class: 'ico' }, '👥'), 'Usuários') : null),
+      sync.el,
       h('div', { class: 'versao' }, `Versão ${VERSAO}`)));
 });

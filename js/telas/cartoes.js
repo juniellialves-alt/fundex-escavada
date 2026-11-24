@@ -27,7 +27,7 @@ export function cartaoEstaca(e, aoTocar) {
         btnObs, icCadeado(e), icSync(e))),
     h('div', { class: 'l2' }, `Ø ${e.diametro} cm · ${U.fmtNum(e.profundidade)} m`),
     h('div', { class: 'l3' }, `${U.fmtDate(e.data)} · ${U.timeOf(e.inicio)} – ${U.timeOf(e.fim)} · ${U.fmtDur(e.duracao)}`),
-    h('div', { class: 'l4' }, `Obra ${e.obra.numero} – ${e.obra.nome}`),
+    h('div', { class: 'l4' }, `Obra ${e.obra.numero} – ${e.obra.nome} · ${e.operador}`),
     obs);
 }
 
@@ -46,7 +46,7 @@ export function cartaoOcorrencia(o, aoTocar, { mostrarData = false } = {}) {
       h('span', { class: 'tag ' + (obra ? 'obra' : 'fundex') }, obra ? 'Obra' : 'Fundex'), ' ',
       mostrarData ? `${U.fmtDate(o.data)} · ` : '', horas, parado ? ` · parado ${U.fmtHM(parado)}` : ''),
     o.complemento ? h('div', { class: 'l3' }, o.complemento) : null,
-    h('div', { class: 'l4' }, `Obra ${o.obra.numero} – ${o.obra.nome} · ${o.maquina}`));
+    h('div', { class: 'l4' }, `Obra ${o.obra.numero} – ${o.obra.nome} · ${o.maquina} · ${o.operador}`));
 }
 
 export function blocoResumo(res) {

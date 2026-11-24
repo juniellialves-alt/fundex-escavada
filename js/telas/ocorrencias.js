@@ -3,10 +3,12 @@ import { h, nav, registrarTela, topo, toast, mostrarErros, campo, confirmar, ped
 import * as S from '../store.js';
 import * as U from '../util.js';
 import { cartaoOcorrencia } from './cartoes.js';
+import * as A from '../auth.js';
 
 registrarTela('ocorrencias', async () => {
   const hoje = U.today();
-  const lista = (await S.listarOcorrencias()).filter(o => o.data === hoje);
+  // Operador vê as dele; Adm vê as de todos
+  const lista = (await S.listarOcorrencias()).filter(o => o.data === hoje && (A.ehAdm() || S.ehMeu(o)));
   const parado = lista.reduce((s, o) => s + S.tempoParado(o), 0);
   return h('div', null,
     topo('Ocorrências do dia'),
@@ -26,11 +28,13 @@ registrarTela('ocorrencia', async ({ id }) => {
     antigo = await S.getOcorrencia(id);
     if (!antigo || antigo.excluido) { setTimeout(() => nav.back()); return h('div'); }
   }
-  const travada = antigo && S.travado(antigo);
-  const desbloqueada = antigo && S.bloqueado(antigo) && !travada;
-  const dis = !!travada;
+  if (!antigo && !ativo) { setTimeout(() => nav.back()); return h('div'); }
+  const somenteLeitura = !!antigo && !S.podeEditar(antigo);
+  const travada = antigo && !somenteLeitura && S.travado(antigo);
+  const desbloqueada = antigo && !somenteLeitura && S.bloqueado(antigo) && !travada;
+  const dis = !!travada || somenteLeitura;
   const hoje = U.today();
-  const base = antigo || { data: hoje, obra: ativo.obra, operador: ativo.operador, ajudantes: ativo.ajudantes, maquina: ativo.maquina };
+  const base = antigo || { data: hoje, obra: ativo.obra, operador: ativo.operador, operadorId: ativo.operadorId, ajudantes: ativo.ajudantes, maquina: ativo.maquina };
 
   let tipo = base.tipo || null;
   let resp = base.responsabilidade || null;
@@ -68,9 +72,10 @@ registrarTela('ocorrencia', async ({ id }) => {
   const obras = await S.listarObras();
   const fObra = h('select', { class: 'campo', disabled: dis },
     obras.map(o => h('option', { value: o.id, selected: o.id === base.obra.id ? 'selected' : null }, `${o.numero} – ${o.nome}`)));
-  const fOper = h('input', { class: 'campo', value: base.operador, disabled: dis });
+  if (!obras.some(o => o.id === base.obra.id)) fObra.prepend(h('option', { value: base.obra.id, selected: 'selected' }, S.rotuloObra(base.obra)));
+  const fOper = h('input', { class: 'campo', value: base.operador, disabled: dis || !A.ehAdm() }); // só o Adm troca o operador
   const fMaq = h('input', { class: 'campo', value: base.maquina, disabled: dis });
-  const ajud = editorAjudantes(base.ajudantes || [], { disabled: dis });
+  const ajud = editorAjudantes(base.ajudantes || [], { disabled: dis, sugestoes: dis ? [] : await A.nomesAjudantes() });
   const erros = h('div', { class: 'erros', hidden: true });
 
   let salvando = false;
@@ -93,8 +98,9 @@ registrarTela('ocorrencia', async ({ id }) => {
       const novo = {
         ...(antigo || {}), tipo, responsabilidade: resp, outros: S.ehOutros(tipo) ? fOutros.value.trim() : '',
         data, inicio: fIni.value, fim: fFim.value, complemento: fCompl.value.trim(),
-        obra, operador: fOper.value.trim(), ajudantes: ajud.ler(), maquina: fMaq.value.trim(),
+        obra, operador: fOper.value.trim(), operadorId: base.operadorId, ajudantes: ajud.ler(), maquina: fMaq.value.trim(),
       };
+      if (!novo.operadorId || novo.operador !== base.operador) delete novo.operadorId; // vale o nome
       await S.salvarOcorrencia(novo, antigo);
       toast('Ocorrência salva');
       if (outra) nav.go('ocorrencia', {}, { replace: true });
@@ -107,11 +113,12 @@ registrarTela('ocorrencia', async ({ id }) => {
     }
   }
   async function desbloquear() {
-    if (await pedirSenha(S.senhaOk, 'Desbloquear ocorrência')) { S.desbloqueados.add(antigo.id); nav.refresh(); }
+    if (await pedirSenha(S.senhaOk, 'Desbloquear ocorrência – senha de um Adm')) { S.desbloqueados.add(antigo.id); nav.refresh(); }
   }
 
-  const acoes = travada
-    ? [h('button', { class: 'btn btn-escuro btn-medio', onclick: desbloquear }, '🔓 Desbloquear (escritório)')]
+  const acoes = somenteLeitura ? []
+    : travada
+    ? [h('button', { class: 'btn btn-escuro btn-medio', onclick: desbloquear }, '🔓 Desbloquear (Adm)')]
     : antigo
       ? [h('button', { class: 'btn btn-verde btn-gigante', onclick: () => salvar(false) }, 'SALVAR'),
         h('button', { class: 'btn btn-perigo btn-medio', onclick: excluir }, '🗑 Excluir ocorrência')]
@@ -122,8 +129,9 @@ registrarTela('ocorrencia', async ({ id }) => {
     topo(antigo ? 'Ocorrência' : 'Nova ocorrência'),
     h('div', { class: 'tela' },
       h('div', { class: 'form' },
+        somenteLeitura ? h('div', { class: 'aviso aviso-info' }, `👁 Ocorrência de ${antigo.operador}: somente consulta`) : null,
         travada ? h('div', { class: 'aviso aviso-bloqueio' }, '🔒 Ocorrência bloqueada para edição (mais de 3 dias)') : null,
-        desbloqueada ? h('div', { class: 'aviso aviso-info' }, '🔓 Desbloqueada pelo escritório') : null,
+        desbloqueada ? h('div', { class: 'aviso aviso-info' }, A.ehAdm() ? '🔓 Mais de 3 dias (Adm pode alterar)' : '🔓 Desbloqueada pelo Adm') : null,
         h('span', { class: 'rotulo' }, 'Toque na ocorrência', h('span', { class: 'obrig' }, ' *')),
         grupo('Obra', 'obra', 'Por parte da obra'),
         grupo('Fundex', 'fundex', 'Por parte da Fundex'),

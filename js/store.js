@@ -1,10 +1,10 @@
 // Regras de negócio: obras, dados ativos, cronômetro, estacas, ocorrências, conferências e alterações.
 import { db, getCfg, setCfg } from './db.js';
 import * as U from './util.js';
+import { sessao, ehAdm, podeOperar } from './auth.js';
 
-// Hash SHA-256 da senha de configuração (a senha em si não fica no código).
-const SENHA_HASH = 'ca48d10b743d65358e78c30f190f23c936dca1721648df04762e5ed40fe5587d';
-export async function senhaOk(s) { return (await U.sha256(String(s || ''))) === SENHA_HASH; }
+/** Senha para destravar registros antigos: a de qualquer Adm ou a do escritório. */
+export { senhaAdmOk as senhaOk } from './auth.js';
 
 export const PRAZO_DIAS = 3;
 export const DIAMETROS = [30, 40, 50, 60, 70, 80, 90, 100, 110, 120, 130, 140, 150];
@@ -31,6 +31,8 @@ async function salvar(store, rec) {
 /* ---------------- Obras e dados ativos ---------------- */
 export const snapObra = o => ({ id: o.id, numero: o.numero, cliente: o.cliente, nome: o.nome, endereco: o.endereco || '' });
 export const rotuloObra = o => (o ? `${o.numero} – ${o.nome}` : '');
+/** A obra é a mesma em todos os celulares quando o Nº da obra é o mesmo. */
+export const chaveObra = o => U.norm(o && o.numero);
 /** Lista de ajudantes em texto: "Pedro, Marcos". */
 export const fmtAjudantes = a => (Array.isArray(a) ? a.filter(Boolean).join(', ') : (a || ''));
 
@@ -39,35 +41,49 @@ export async function listarObras() {
 }
 export async function getObra(id) { const o = await db.get('obras', id); return o ? snapObra(o) : null; }
 
+/** Obra, máquina e ajudantes do dia. O operador é sempre o usuário que entrou no app. */
 export async function getAtivo() {
   const a = await getCfg('ativo');
-  if (!a) return null;
+  const s = sessao();
+  if (!a || !s) return null;
   const obra = await db.get('obras', a.obraId);
-  if (!obra || !a.operador || !a.maquina) return null;
-  return { obra: snapObra(obra), operador: a.operador, maquina: a.maquina, ajudantes: a.ajudantes || [] };
+  if (!obra || !a.maquina) return null;
+  return { obra: snapObra(obra), operador: s.nome, operadorId: s.id, maquina: a.maquina, ajudantes: a.ajudantes || [] };
 }
 
 /** Salva a tela "Dados da obra". A obra é identificada pelo Nº da obra. */
 export async function salvarDadosObra(d) {
   const obras = await db.all('obras');
-  let obra = obras.find(o => U.norm(o.numero) === U.norm(d.numero));
+  let obra = obras.find(o => chaveObra(o) === chaveObra(d));
   if (!obra) obra = { id: U.uuid(), criadaEm: Date.now() };
   Object.assign(obra, {
     numero: d.numero.trim(), cliente: d.cliente.trim(), nome: d.nome.trim(),
     endereco: (d.endereco || '').trim(), usadaEm: Date.now(),
   });
   await db.put('obras', obra);
-  await setCfg('ativo', { obraId: obra.id, operador: d.operador.trim(), maquina: d.maquina.trim(), ajudantes: d.ajudantes || [] });
+  await setCfg('ativo', { obraId: obra.id, maquina: d.maquina.trim(), ajudantes: d.ajudantes || [] });
   avisar();
 }
 
-/* ---------------- Conferência diária ---------------- */
-export async function precisaConferencia() { return (await getCfg('ultimaConferencia')) !== U.today(); }
+/** Guarda no celular as obras que chegaram de outros celulares (para filtros e para escolher a obra). */
+export async function registrarObrasDe(registros) {
+  const obras = await db.all('obras');
+  const chaves = new Set(obras.map(chaveObra));
+  for (const r of registros) {
+    if (!r.obra || !r.obra.numero || chaves.has(chaveObra(r.obra))) continue;
+    chaves.add(chaveObra(r.obra));
+    await db.put('obras', { ...snapObra(r.obra), criadaEm: Date.now(), usadaEm: 0 });
+  }
+}
+
+/* ---------------- Conferência diária (uma por dia para cada usuário) ---------------- */
+const marcaConferencia = () => `${U.today()}|${sessao() ? sessao().id : ''}`;
+export async function precisaConferencia() { return (await getCfg('ultimaConferencia')) !== marcaConferencia(); }
 
 export async function registrarConferencia(ativo, ts) {
-  const rec = { id: U.uuid(), data: U.dateOf(ts), hora: ts, obra: ativo.obra, operador: ativo.operador, maquina: ativo.maquina, ajudantes: ativo.ajudantes || [] };
+  const rec = { id: U.uuid(), data: U.dateOf(ts), hora: ts, obra: ativo.obra, operador: ativo.operador, operadorId: ativo.operadorId, maquina: ativo.maquina, ajudantes: ativo.ajudantes || [] };
   await salvar('conferencias', rec);
-  await setCfg('ultimaConferencia', rec.data);
+  await setCfg('ultimaConferencia', marcaConferencia());
 }
 
 /* ---------------- Cronômetro (baseado na hora salva) ---------------- */
@@ -98,11 +114,21 @@ export async function criarEstaca(d) {
   await setCfg('ultimoDiametro', e.diametro);
   return e;
 }
-/** Registros com mais de 3 dias ficam bloqueados (a não ser que o escritório desbloqueie com a senha). */
+/** Registros com mais de 3 dias ficam bloqueados (a não ser que um Adm desbloqueie com a senha). */
 export const bloqueado = r => U.diffDays(r.data, U.today()) > PRAZO_DIAS;
 /** IDs desbloqueados com a senha nesta sessão do app. */
 export const desbloqueados = new Set();
-export const travado = r => bloqueado(r) && !desbloqueados.has(r.id);
+/** O Adm edita registros antigos sem precisar desbloquear. */
+export const travado = r => bloqueado(r) && !desbloqueados.has(r.id) && !ehAdm();
+
+/** Registro lançado pelo usuário que está no app (registros antigos, sem operadorId, comparam o nome). */
+export function ehMeu(r) {
+  const s = sessao();
+  if (!s) return false;
+  return r.operadorId ? r.operadorId === s.id : U.norm(r.operador) === U.norm(s.nome);
+}
+/** Adm altera qualquer registro; Operador só os dele; Ajudante nenhum. */
+export const podeEditar = r => ehAdm() || (podeOperar() && ehMeu(r));
 export const getEstaca = id => db.get('estacas', id);
 export const getOcorrencia = id => db.get('ocorrencias', id);
 
@@ -125,7 +151,7 @@ const CAMPOS_OCORRENCIA = [
   ['obra', 'Obra', rotuloObra], ['operador', 'Operador'], ['ajudantes', 'Ajudante(s)', fmtAjudantes], ['maquina', 'Máquina'],
 ];
 
-async function operadorAtual() { const a = await getAtivo(); return a ? a.operador : ''; }
+async function operadorAtual() { const s = sessao(); return s ? s.nome : ''; }
 
 async function registrarAlteracao(tipo, rec, nome, campo, anterior, novo) {
   await salvar('alteracoes', {
@@ -189,7 +215,7 @@ export function resumir(estacas) {
 
 export async function contarPendentes() {
   let n = 0;
-  for (const s of ['estacas', 'ocorrencias', 'conferencias', 'alteracoes']) {
+  for (const s of ['estacas', 'ocorrencias', 'conferencias', 'alteracoes', 'usuarios']) {
     n += (await db.all(s)).filter(r => r.sync === 'pendente').length;
   }
   return n;

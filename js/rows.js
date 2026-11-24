@@ -26,15 +26,27 @@ export function linhaAlteracao(a) {
   return [a.registroTipo, a.registroNome, a.campo, a.anterior, a.novo, `${U.fmtDate(U.dateOf(a.quando))} ${U.timeOf(a.quando, true)}`, a.operador];
 }
 
-/** Formato de envio: ID primeiro; Estacas e Ocorrências ganham "Excluído" e "Atualizado em". */
-const comControle = (cols, fn, excluivel) => ({
-  colunas: ['ID', ...cols, ...(excluivel ? ['Excluído'] : []), 'Atualizado em'],
-  linha: r => [r.id, ...fn(r), ...(excluivel ? [r.excluido ? 'Sim' : 'Não'] : []), U.fmtDateTime(r.atualizadoEm)],
+export const COLS_USUARIO = ['Nome', 'Usuário', 'Perfil', 'Ativo'];
+const PERFIL_TXT = { adm: 'Adm', operador: 'Operador', ajudante: 'Ajudante' };
+export function linhaUsuario(u) { return [u.nome, u.login, PERFIL_TXT[u.perfil] || u.perfil, u.ativo ? 'Sim' : 'Não']; }
+
+/** Cópia do registro que vai na coluna escondida "Dados": é dela que os outros celulares leem. */
+const dadosJson = r => { const { sync, enviadoEm, ...resto } = r; return JSON.stringify(resto); };
+
+/**
+ * Formato de envio: ID primeiro e "Atualizado em" no fim.
+ * baixavel: também leva "Dados" (para os outros celulares baixarem) e "Excluído"
+ * (o script apaga a linha da planilha quando vem "Sim"; essa coluna não é gravada).
+ */
+const comControle = (cols, fn, baixavel) => ({
+  colunas: ['ID', ...cols, 'Atualizado em', ...(baixavel ? ['Dados', 'Excluído'] : [])],
+  linha: r => [r.id, ...fn(r), U.fmtDateTime(r.atualizadoEm), ...(baixavel ? [dadosJson(r), r.excluido ? 'Sim' : 'Não'] : [])],
 });
 
 export const SYNC = [
-  { store: 'estacas', aba: 'Estacas', ...comControle(COLS_ESTACA, linhaEstaca, true) },
-  { store: 'ocorrencias', aba: 'Ocorrências', ...comControle(COLS_OCORRENCIA, linhaOcorrencia, true) },
+  { store: 'usuarios', aba: 'Usuários', baixar: true, ...comControle(COLS_USUARIO, linhaUsuario, true) },
+  { store: 'estacas', aba: 'Estacas', baixar: true, ...comControle(COLS_ESTACA, linhaEstaca, true) },
+  { store: 'ocorrencias', aba: 'Ocorrências', baixar: true, ...comControle(COLS_OCORRENCIA, linhaOcorrencia, true) },
   { store: 'conferencias', aba: 'Conferências', ...comControle(COLS_CONFERENCIA, linhaConferencia, false) },
   { store: 'alteracoes', aba: 'Alterações', ...comControle([...COLS_ALTERACAO, 'ID do registro'], a => [...linhaAlteracao(a), a.registroId], false) },
 ];

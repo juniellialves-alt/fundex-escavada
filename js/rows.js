@@ -26,15 +26,21 @@ export function linhaAlteracao(a) {
   return [a.registroTipo, a.registroNome, a.campo, a.anterior, a.novo, `${U.fmtDate(U.dateOf(a.quando))} ${U.timeOf(a.quando, true)}`, a.operador];
 }
 
-export const COLS_USUARIO = ['Nome', 'Usuário', 'Perfil', 'Ativo'];
+// "Senha": só vai preenchida quando o Adm cria ou troca a senha (vazia, a planilha mantém a que já está lá)
+export const COLS_USUARIO = ['Nome', 'Usuário', 'Perfil', 'Ativo', 'Senha'];
 const PERFIL_TXT = { adm: 'Adm', operador: 'Operador', ajudante: 'Ajudante' };
-export function linhaUsuario(u) { return [u.nome, u.login, PERFIL_TXT[u.perfil] || u.perfil, u.ativo ? 'Sim' : 'Não']; }
+export function linhaUsuario(u) { return [u.nome, u.login, PERFIL_TXT[u.perfil] || u.perfil, u.ativo ? 'Sim' : 'Não', u._senha || '']; }
 
 export const COLS_MAQUINA = ['Máquina', 'Ativa'];
 export function linhaMaquina(m) { return [m.nome, m.ativo ? 'Sim' : 'Não']; }
 
 /** Cópia do registro que vai na coluna escondida "Dados": é dela que os outros celulares leem. */
-const dadosJson = r => { const { sync, enviadoEm, ...resto } = r; return JSON.stringify(resto); };
+// Campos que começam com "_" (ex.: _senha) são só para a planilha: não vão para os outros celulares.
+const dadosJson = r => {
+  const { sync, enviadoEm, ...resto } = r;
+  for (const k of Object.keys(resto)) if (k.startsWith('_')) delete resto[k];
+  return JSON.stringify(resto);
+};
 
 /**
  * Formato de envio: ID primeiro e "Atualizado em" no fim.

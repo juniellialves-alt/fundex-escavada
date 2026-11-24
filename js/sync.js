@@ -101,7 +101,11 @@ export async function enviarAgora() {
         const r = await db.get(store, id);
         if (!r || r.rev !== rev) continue; // foi alterado durante o envio: vai no próximo
         if (r.excluido) await db.del(store, id); // a planilha já apagou a linha; o celular também apaga
-        else { r.sync = 'enviada'; r.enviadoEm = Date.now(); await db.put(store, r); }
+        else {
+          r.sync = 'enviada'; r.enviadoEm = Date.now();
+          for (const k of Object.keys(r)) if (k.startsWith('_')) delete r[k]; // ex.: _senha já está na planilha
+          await db.put(store, r);
+        }
       }
       total += enviados.length;
     }

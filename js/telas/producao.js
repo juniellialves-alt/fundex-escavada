@@ -1,4 +1,4 @@
-// Produção mensal. Operador: só a dele. Adm e Ajudante: escolhem o operador (ou todos).
+// Produção mensal. Operador: só a dele. Ajudante: só as estacas em que trabalhou. Adm: escolhe o operador (ou todos).
 import { h, nav, registrarTela, topo } from '../ui.js';
 import * as S from '../store.js';
 import * as U from '../util.js';
@@ -9,28 +9,28 @@ import * as A from '../auth.js';
 let mesSel = null; // guardado enquanto o app estiver aberto
 const escolha = { dono: null, operador: '' }; // operador = nome normalizado; '' = todos
 
-/** Ajudante começa vendo o operador com quem trabalhou por último. */
-function operadorPadrao(est) {
-  if (!A.ehAjudante()) return '';
-  const eu = U.norm(A.sessao().nome);
-  const ultima = est.find(e => (e.ajudantes || []).some(n => U.norm(n) === eu)); // est vem da mais nova para a mais antiga
-  return ultima ? U.norm(ultima.operador) : '';
-}
+/** O ajudante aparece na lista de ajudantes da estaca/ocorrência (pelo nome do cadastro). */
+const trabalhouNela = (r, eu) => (r.ajudantes || []).some(n => U.norm(n) === eu);
 
 async function dadosDoOperador() {
   const [todasE, todasO] = await Promise.all([S.listarEstacas(), S.listarOcorrencias()]);
   const s = A.sessao();
   if (s.perfil === 'operador') {
-    return { titulo: 'Minha produção', nomeOper: s.nome, escolhe: false, est: todasE.filter(S.ehMeu), oc: todasO.filter(S.ehMeu) };
+    return { titulo: 'Minha produção', rotulo: `Operador: ${s.nome}`, nomeOper: s.nome, escolhe: false, est: todasE.filter(S.ehMeu), oc: todasO.filter(S.ehMeu) };
+  }
+  if (s.perfil === 'ajudante') {
+    const eu = U.norm(s.nome);
+    return { titulo: 'Minha produção', rotulo: `Ajudante: ${s.nome}`, nomeOper: s.nome, escolhe: false,
+      est: todasE.filter(e => trabalhouNela(e, eu)), oc: todasO.filter(o => trabalhouNela(o, eu)) };
   }
   const nomes = new Map();
   for (const r of [...todasE, ...todasO]) if (r.operador && !nomes.has(U.norm(r.operador))) nomes.set(U.norm(r.operador), r.operador);
-  if (escolha.dono !== s.id) Object.assign(escolha, { dono: s.id, operador: operadorPadrao(todasE) });
+  if (escolha.dono !== s.id) Object.assign(escolha, { dono: s.id, operador: '' });
   if (escolha.operador && !nomes.has(escolha.operador)) escolha.operador = '';
   const filtro = r => !escolha.operador || U.norm(r.operador) === escolha.operador;
+  const nomeOper = escolha.operador ? nomes.get(escolha.operador) : 'Todos os operadores';
   return {
-    titulo: 'Produção', escolhe: true, nomes,
-    nomeOper: escolha.operador ? nomes.get(escolha.operador) : 'Todos os operadores',
+    titulo: 'Produção', escolhe: true, nomes, nomeOper, rotulo: `Operador: ${nomeOper}`,
     est: todasE.filter(filtro), oc: todasO.filter(filtro),
   };
 }
@@ -38,7 +38,7 @@ async function dadosDoOperador() {
 const total = (num, lbl, classe = '') => h('div', { class: 'total ' + classe }, h('div', { class: 'num' }, num), h('div', { class: 'lbl' }, lbl));
 
 registrarTela('producao', async () => {
-  const { titulo, nomeOper, escolhe, nomes, est: todasE, oc: todasO } = await dadosDoOperador();
+  const { titulo, rotulo, nomeOper, escolhe, nomes, est: todasE, oc: todasO } = await dadosDoOperador();
   const mesAtual = U.monthOf(U.today());
   if (!mesSel) mesSel = mesAtual;
 
@@ -97,7 +97,7 @@ registrarTela('producao', async () => {
         h('div', { class: 'mes' }, U.fmtMonth(mesSel)),
         h('button', { class: 'btn btn-escuro', 'aria-label': 'Próximo mês', disabled: mesSel >= mesAtual, onclick: () => mudarMes(1) }, '▶')),
       h('div', { style: { fontWeight: 700, color: 'var(--texto-2)', marginBottom: '10px' } },
-        `Operador: ${nomeOper}`, mesSel === mesAtual ? ` · do dia 1º até hoje` : ''),
+        rotulo, mesSel === mesAtual ? ` · do dia 1º até hoje` : ''),
 
       h('div', { class: 'totais' },
         total(String(res.qtd), 'estacas'),

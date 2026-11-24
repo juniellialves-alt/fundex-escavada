@@ -72,8 +72,8 @@ function telaAjudante() {
     cabecalho(),
     h('div', { class: 'tela' },
       h('div', { class: 'aviso aviso-info', style: { marginTop: '14px' } },
-        'Você pode acompanhar a produção. As estacas são lançadas pelo operador e chegam aqui sozinhas quando há internet.'),
-      h('button', { class: 'btn btn-escuro btn-gigante', style: { marginTop: '14px' }, onclick: () => nav.go('producao') }, '📊 Ver produção'),
+        'Aqui você acompanha a sua produção: as estacas em que o operador marcou você como ajudante. Elas chegam sozinhas quando há internet.'),
+      h('button', { class: 'btn btn-escuro btn-gigante', style: { marginTop: '14px' }, onclick: () => nav.go('producao') }, '📊 Minha produção'),
       h('div', { class: 'espaco' }),
       sync.el,
       h('div', { class: 'versao' }, `Versão ${VERSAO}`)));

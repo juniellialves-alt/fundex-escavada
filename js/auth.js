@@ -11,7 +11,7 @@ export const PERFIS = { adm: 'Adm', operador: 'Operador', ajudante: 'Ajudante' }
 export const DESCRICAO_PERFIL = {
   adm: 'Tudo: configuração, usuários e qualquer estaca',
   operador: 'Cronômetro, estacas, ocorrências e produção',
-  ajudante: 'Só vê a produção',
+  ajudante: 'Só vê a própria produção',
 };
 export const ADMIN_MESTRE = { id: 'admin', login: 'admin', nome: 'Administrador', perfil: 'adm' };
 
@@ -26,7 +26,9 @@ async function derivar(senha, salHex) {
   const bits = await crypto.subtle.deriveBits({ name: 'PBKDF2', hash: 'SHA-256', salt: sal, iterations: ITERACOES }, chave, 256);
   return [...new Uint8Array(bits)].map(b => b.toString(16).padStart(2, '0')).join('');
 }
-const senhaConfere = async (u, senha) => !!(u.sal && u.hash) && (await derivar(senha, u.sal)) === u.hash;
+// Senha provisória (cadastrada pela planilha): SHA-256 simples, trocada pela definitiva no primeiro acesso.
+const senhaConfere = async (u, senha) => !!(u.sal && u.hash) &&
+  (u.hashTipo === 'sha256' ? (await U.sha256(u.sal + String(senha || ''))) : (await derivar(senha, u.sal))) === u.hash;
 
 export async function senhaMestreOk(s) { return (await U.sha256(String(s || ''))) === SENHA_MESTRE_HASH; }
 
@@ -51,7 +53,10 @@ export async function salvarUsuario({ id, nome, login, perfil, senha, ativo = tr
   const u = { ...(antigo || { id: U.uuid(), criadoEm: Date.now() }), nome: nome.trim(), login: l, perfil, ativo: !!ativo };
   // máquina de costume do operador: já vem marcada na tela "Dados da obra"
   if (perfil === 'operador' && maquinaId) u.maquinaId = maquinaId; else delete u.maquinaId;
-  if (senha) { u.sal = gerarSal(); u.hash = await derivar(senha, u.sal); }
+  if (senha) {
+    u.sal = gerarSal(); u.hash = await derivar(senha, u.sal); delete u.hashTipo; delete u.senhaProvisoria;
+    u._senha = senha; // vai para a coluna "Senha" da planilha no próximo envio e depois é apagada do celular
+  }
   u.rev = (u.rev || 0) + 1;
   u.atualizadoEm = Date.now();
   u.sync = 'pendente';
@@ -88,7 +93,14 @@ export async function entrar(login, senha) {
   if (!u) return { ok: false, naoEncontrado: true, msg: `Usuário "${l}" não encontrado neste celular.` };
   if (!(await senhaConfere(u, senha))) return falha;
   if (!u.ativo) return { ok: false, msg: 'Este usuário está desativado. Fale com o escritório.' };
-  return { ok: true, sessao: await abrirSessao(u) };
+  return { ok: true, sessao: await abrirSessao(u), trocarSenha: !!u.senhaProvisoria };
+}
+
+/** Troca a senha do usuário logado (usado no primeiro acesso com senha provisória). */
+export async function trocarMinhaSenha(nova) {
+  const u = sessaoAtual && (await db.get('usuarios', sessaoAtual.id));
+  if (!u) return { ok: false, msg: 'Usuário não encontrado.' };
+  return salvarUsuario({ id: u.id, nome: u.nome, login: u.login, perfil: u.perfil, ativo: u.ativo, maquinaId: u.maquinaId, senha: nova });
 }
 
 export async function sair() { sessaoAtual = null; await setCfg('sessao', null); }

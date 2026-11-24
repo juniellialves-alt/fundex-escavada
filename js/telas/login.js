@@ -1,6 +1,30 @@
 // Tela de entrada: usuário e senha.
-import { h, registrarTela, campo, toast, pedirSenha } from '../ui.js';
-import { entrar } from '../auth.js';
+import { h, registrarTela, campo, toast, pedirSenha, modal } from '../ui.js';
+import { entrar, sair, trocarMinhaSenha } from '../auth.js';
+
+/** Primeiro acesso com senha provisória: pede a senha definitiva (duas vezes). Retorna true se trocou. */
+async function criarSenhaDefinitiva() {
+  const s1 = h('input', { type: 'password', class: 'campo', autocomplete: 'new-password', 'aria-label': 'Nova senha' });
+  const s2 = h('input', { type: 'password', class: 'campo', autocomplete: 'new-password', 'aria-label': 'Repita a nova senha' });
+  const erro = h('p', { class: 'erro-texto', hidden: true });
+  const v = await modal({
+    titulo: 'Crie a sua senha',
+    corpo: h('div', null,
+      h('p', null, 'Você entrou com uma senha provisória. Crie agora a sua senha (mínimo de 4 caracteres).'),
+      campo('Nova senha', s1), campo('Repita a nova senha', s2), erro),
+    botoes: [{ texto: 'CANCELAR', valor: false }, { texto: 'SALVAR', classe: 'btn-verde', valor: true }],
+    antesDeFechar: async ok => {
+      if (!ok) return true;
+      const falha = s1.value.length < 4 ? 'A senha precisa ter pelo menos 4 caracteres.' : s1.value !== s2.value ? 'As duas senhas estão diferentes.' : '';
+      if (falha) { erro.textContent = falha; erro.hidden = false; return false; }
+      const r = await trocarMinhaSenha(s1.value);
+      if (!r.ok) { erro.textContent = r.msg; erro.hidden = false; return false; }
+      return true;
+    },
+  });
+  if (v) toast('Senha criada. Use ela das próximas vezes.');
+  return v === true;
+}
 import { getCfg } from '../db.js';
 import { baixarAgora, sincronizar } from '../sync.js';
 import { configurarSeFaltar, destrancar } from '../config-padrao.js';
@@ -43,6 +67,11 @@ registrarTela('login', async () => {
       if (!r.ok) {
         if (r.naoEncontrado && !(await getCfg('scriptUrl'))) r.msg += ' Este celular ainda não está ligado à planilha: é preciso a senha do escritório uma vez.';
         mostrar(r.msg); fSenha.select(); return;
+      }
+      // Senha provisória (cadastro feito pela planilha): a pessoa cria a senha dela agora
+      if (r.trocarSenha && !(await criarSenhaDefinitiva())) {
+        await sair();
+        mostrar('Para entrar, crie a sua senha.'); return;
       }
       // Celular novo: a senha do escritório destranca o endereço da planilha e o app já baixa usuários e máquinas
       if (r.sessao.id === 'admin' && (await configurarSeFaltar(fSenha.value))) {

@@ -1,5 +1,6 @@
 // Tela principal: cronômetro, acessos e situação do envio.
-import { h, nav, onLeave, registrarTela, confirmar, toast } from '../ui.js';
+import { h, nav, onLeave, registrarTela, confirmar, toast, pedirSenha } from '../ui.js';
+import { destrancar, configurarSeFaltar } from '../config-padrao.js';
 import * as S from '../store.js';
 import * as U from '../util.js';
 import { statusSync, sincronizar } from '../sync.js';
@@ -38,11 +39,20 @@ function barraSync() {
     else linha1 = `⏳ ${st.pendentes} ${st.pendentes === 1 ? 'registro aguardando' : 'registros aguardando'} internet`;
     const aviso = !st.configurado ? 'Planilha não configurada' : (st.erro && st.pendentes ? `Falha: ${st.erro.msg}` : '');
     box.className = 'sync-barra ' + (st.pendentes ? 'pend' : 'ok');
-    const btn = h('button', { class: 'btn btn-escuro', disabled: st.rodando }, 'Atualizar agora');
+    const btn = h('button', { class: 'btn btn-escuro', disabled: st.rodando }, st.configurado ? 'Atualizar agora' : '🔗 Ligar à planilha');
     btn.onclick = async () => {
       btn.disabled = true;
+      if (!st.configurado) {
+        // a senha do escritório destranca o endereço e o código da planilha
+        let senha = '';
+        const ok = await pedirSenha(async s => { senha = s; return !!(await destrancar(s)); }, 'Ligar à planilha – senha do escritório');
+        if (!ok) { btn.disabled = false; return; }
+        await configurarSeFaltar(senha);
+        toast('Buscando cadastros na planilha…');
+      }
       const r = await sincronizar();
       toast(r.ok ? `Atualizado${r.total ? ` · ${r.total} enviado(s)` : ''}${r.baixados ? ` · ${r.baixados} recebido(s)` : ''}` : r.msg);
+      if (r.baixados && !document.querySelector('.modal-fundo')) nav.refresh();
     };
     box.replaceChildren(
       h('div', { class: 'txt' }, h('b', null, linha1), h('br'), ultimo, aviso ? h('div', { style: { color: '#7A0000', fontWeight: 700 } }, aviso) : null),

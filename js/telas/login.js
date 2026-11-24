@@ -1,8 +1,9 @@
 // Tela de entrada: usuário e senha.
-import { h, registrarTela, campo } from '../ui.js';
+import { h, registrarTela, campo, toast } from '../ui.js';
 import { entrar } from '../auth.js';
 import { getCfg } from '../db.js';
-import { baixarAgora } from '../sync.js';
+import { baixarAgora, sincronizar } from '../sync.js';
+import { configurarSeFaltar } from '../config-padrao.js';
 import { irParaInicio } from '../inicio.js';
 import { VERSAO } from '../versao.js';
 
@@ -29,8 +30,15 @@ registrarTela('login', async () => {
         if (!r.ok && r.naoEncontrado && !b.ok) r.msg += ` Não foi possível buscar na planilha: ${b.msg}`;
       }
       if (!r.ok) {
-        if (r.naoEncontrado && !configurado) r.msg += ' Este celular ainda não foi configurado: entre como "admin" e configure a planilha.';
+        if (r.naoEncontrado && !configurado) r.msg += ' Este celular ainda não está ligado à planilha: entre uma vez com o usuário "admin" e a senha do escritório.';
         mostrar(r.msg); fSenha.select(); return;
+      }
+      // Celular novo: a senha do escritório destranca o endereço da planilha e o app já baixa usuários e máquinas
+      if (r.sessao.id === 'admin' && (await configurarSeFaltar(fSenha.value))) {
+        btn.textContent = 'Buscando cadastros na planilha…';
+        const b = await sincronizar();
+        if (!b.ok) toast('Celular ligado à planilha, mas sem conexão agora. Os cadastros chegam quando houver internet.');
+        else toast('Celular ligado à planilha. Cadastros recebidos.');
       }
       await irParaInicio();
     } finally { btn.disabled = false; btn.textContent = 'ENTRAR'; }
@@ -45,6 +53,6 @@ registrarTela('login', async () => {
       msg,
       btn),
     !configurado ? h('div', { class: 'aviso aviso-info', style: { marginTop: '16px' } },
-      'Primeiro acesso neste celular? Entre com o usuário "admin" e a senha do escritório para ligar o app à planilha.') : null,
+      'Primeiro acesso neste celular? Entre uma vez com o usuário "admin" e a senha do escritório: o app se liga sozinho à planilha e recebe os usuários e as máquinas.') : null,
     h('div', { class: 'versao' }, `Versão ${VERSAO}`));
 });

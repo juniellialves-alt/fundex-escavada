@@ -35,7 +35,7 @@ registrarTela('obra', async ({ primeira = false, depois = null }) => {
   };
   const nomesMaq = await M.nomesMaquinas();
   const maq = seletorMaquina(await maquinaInicial(cfgAtivo, nomesMaq), nomesMaq, { obrig: true });
-  const ajud = editorAjudantes(cfgAtivo.ajudantes || [], { sugestoes: await A.nomesAjudantes() });
+  const ajud = editorAjudantes(cfgAtivo.ajudantes || [], { sugestoes: await A.nomesAjudantes(), operadores: await A.nomesOperadores(A.sessao().nome) });
   const erros = h('div', { class: 'erros', hidden: true });
 
   // Lista de obras já cadastradas

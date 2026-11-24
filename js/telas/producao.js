@@ -16,7 +16,19 @@ async function dadosDoOperador() {
   const [todasE, todasO] = await Promise.all([S.listarEstacas(), S.listarOcorrencias()]);
   const s = A.sessao();
   if (s.perfil === 'operador') {
-    return { titulo: 'Minha produção', rotulo: `Operador: ${s.nome}`, nomeOper: s.nome, escolhe: false, est: todasE.filter(S.ehMeu), oc: todasO.filter(S.ehMeu) };
+    // Operador que trabalhou como ajudante de outro operador: aparece a opção "Como ajudante" (só quando isso aconteceu)
+    const eu = U.norm(s.nome);
+    const estAjud = todasE.filter(e => !S.ehMeu(e) && trabalhouNela(e, eu));
+    const ocAjud = todasO.filter(o => !S.ehMeu(o) && trabalhouNela(o, eu));
+    if (escolha.dono !== s.id) Object.assign(escolha, { dono: s.id, operador: '', modo: 'operador' });
+    if (!estAjud.length) escolha.modo = 'operador';
+    const comoAjud = escolha.modo === 'ajudante';
+    return {
+      titulo: 'Minha produção', nomeOper: s.nome, escolhe: false,
+      rotulo: comoAjud ? `Como ajudante: ${s.nome}` : `Operador: ${s.nome}`,
+      est: comoAjud ? estAjud : todasE.filter(S.ehMeu), oc: comoAjud ? ocAjud : todasO.filter(S.ehMeu),
+      modos: estAjud.length ? { comoAjud, qtd: estAjud.length } : null,
+    };
   }
   if (s.perfil === 'ajudante') {
     const eu = U.norm(s.nome);
@@ -38,7 +50,7 @@ async function dadosDoOperador() {
 const total = (num, lbl, classe = '') => h('div', { class: 'total ' + classe }, h('div', { class: 'num' }, num), h('div', { class: 'lbl' }, lbl));
 
 registrarTela('producao', async () => {
-  const { titulo, rotulo, nomeOper, escolhe, nomes, est: todasE, oc: todasO } = await dadosDoOperador();
+  const { titulo, rotulo, nomeOper, escolhe, nomes, modos, est: todasE, oc: todasO } = await dadosDoOperador();
   const mesAtual = U.monthOf(U.today());
   if (!mesSel) mesSel = mesAtual;
 
@@ -88,10 +100,17 @@ registrarTela('producao', async () => {
     return h('label', { class: 'grupo', style: { marginBottom: '10px' } }, h('span', { class: 'rotulo' }, 'Operador'), s);
   })() : null;
 
+  // Operador que também trabalhou como ajudante: escolhe qual produção ver
+  const seletorModo = modos ? h('div', { class: 'filtros-chips', style: { display: 'flex', gap: '8px', margin: '12px 0' } },
+    h('button', { class: 'btn btn-cinza chip' + (modos.comoAjud ? '' : ' sel'), onclick: () => { escolha.modo = 'operador'; nav.refresh(); } }, 'Como operador'),
+    h('button', { class: 'btn btn-cinza chip' + (modos.comoAjud ? ' sel' : ''), onclick: () => { escolha.modo = 'ajudante'; nav.refresh(); } },
+      `Como ajudante (${modos.qtd})`)) : null;
+
   return h('div', null,
     topo(titulo),
     h('div', { class: 'tela' },
       seletorOper,
+      seletorModo,
       h('div', { class: 'seletor-mes' },
         h('button', { class: 'btn btn-escuro', 'aria-label': 'Mês anterior', onclick: () => mudarMes(-1) }, '◀'),
         h('div', { class: 'mes' }, U.fmtMonth(mesSel)),

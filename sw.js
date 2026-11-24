@@ -1,6 +1,6 @@
 // Service worker: guarda o app no celular para abrir e funcionar sem internet.
 // Ao publicar uma atualização, aumente a versão abaixo (e em js/versao.js).
-const CACHE = 'fundex-escavada-1.3.6';
+const CACHE = 'fundex-escavada-1.3.7';
 const ARQUIVOS = [
   './', 'index.html', 'manifest.webmanifest', 'css/app.css',
   'img/logo.svg', 'img/icone-192.png', 'img/icone-512.png', 'img/icone-maskable-512.png', 'img/apple-touch-icon.png',

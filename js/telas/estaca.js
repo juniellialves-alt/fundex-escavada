@@ -94,7 +94,7 @@ registrarTela('estaca', async ({ modo = 'manual', id }) => {
   // só o Adm troca o operador de uma estaca
   const fOper = h('input', { class: 'campo', value: base.operador || '', disabled: dis || !A.ehAdm() });
   const maq = seletorMaquina(base.maquina || '', dis ? [] : await M.nomesMaquinas(), { disabled: dis });
-  const ajud = editorAjudantes(base.ajudantes || [], { disabled: dis, sugestoes: dis ? [] : await A.nomesAjudantes() });
+  const ajud = editorAjudantes(base.ajudantes || [], { disabled: dis, sugestoes: dis ? [] : await A.nomesAjudantes(), operadores: dis ? [] : await A.nomesOperadores(base.operador) });
 
   const dado = (k, v, largo) => h('div', { class: 'dado' + (largo ? ' largo' : '') }, h('div', { class: 'k' }, k), h('div', { class: 'v' }, v || '—'));
 

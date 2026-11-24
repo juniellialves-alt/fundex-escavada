@@ -209,26 +209,33 @@ export function seletorMaquina(atual = '', opcoes = [], { disabled = false, rotu
  * Nomes antigos que não estão no cadastro continuam aparecendo marcados e podem ser desmarcados.
  * Sem ajudantes cadastrados neste celular, volta a ser digitado (um campo por ajudante).
  */
-export function editorAjudantes(inicial = [], { disabled = false, sugestoes = [] } = {}) {
+// operadores: outros operadores, que aparecem à parte para o caso de um deles trabalhar como ajudante naquele dia.
+export function editorAjudantes(inicial = [], { disabled = false, sugestoes = [], operadores = [] } = {}) {
   const nomesIniciais = (inicial || []).filter(Boolean);
   const tit = h('span', { class: 'rotulo' }, 'Ajudante(s)');
   if (disabled) {
     return { el: h('div', { class: 'grupo' }, tit, h('div', { class: 'v' }, nomesIniciais.join(', ') || '—')), ler: () => nomesIniciais };
   }
-  if (sugestoes.length) {
+  if (sugestoes.length || operadores.length) {
     const sel = new Set(nomesIniciais);
-    const lista = [...sugestoes, ...nomesIniciais.filter(n => !sugestoes.includes(n))];
-    const botoes = lista.map(n => {
-      const b = h('button', { type: 'button', class: 'opcao' }, n, sugestoes.includes(n) ? null : h('small', null, ' (antigo)'));
+    const ops = operadores.filter(n => !sugestoes.includes(n));
+    const antigos = nomesIniciais.filter(n => !sugestoes.includes(n) && !ops.includes(n));
+    const botao = (n, antigo) => {
+      const b = h('button', { type: 'button', class: 'opcao' }, n, antigo ? h('small', null, ' (antigo)') : null);
       b.onclick = () => { if (sel.has(n)) sel.delete(n); else sel.add(n); marcar(); };
       return [b, n];
-    });
-    const marcar = () => botoes.forEach(([b, n]) => { b.classList.toggle('sel', sel.has(n)); b.setAttribute('aria-pressed', sel.has(n)); });
+    };
+    const bAjud = [...sugestoes.map(n => botao(n)), ...antigos.map(n => botao(n, true))];
+    const bOps = ops.map(n => botao(n));
+    const todos = [...bAjud, ...bOps];
+    const marcar = () => todos.forEach(([b, n]) => { b.classList.toggle('sel', sel.has(n)); b.setAttribute('aria-pressed', sel.has(n)); });
     marcar();
     return {
       el: h('div', { class: 'grupo' }, tit, h('div', { class: 'dica' }, 'Toque em quem está trabalhando com você (pode ser mais de um).'),
-        h('div', { class: 'grade-opcoes' }, botoes.map(b => b[0]))),
-      ler: () => lista.filter(n => sel.has(n)),
+        bAjud.length ? h('div', { class: 'grade-opcoes' }, bAjud.map(b => b[0])) : null,
+        bOps.length ? h('div', { class: 'dica', style: { marginTop: '8px' } }, 'Operador ajudando hoje (só se for o caso):') : null,
+        bOps.length ? h('div', { class: 'grade-opcoes' }, bOps.map(b => b[0])) : null),
+      ler: () => todos.map(b => b[1]).filter(n => sel.has(n)),
     };
   }
   return editorAjudantesDigitado(nomesIniciais);

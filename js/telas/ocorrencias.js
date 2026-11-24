@@ -76,7 +76,7 @@ registrarTela('ocorrencia', async ({ id }) => {
   if (!obras.some(o => o.id === base.obra.id)) fObra.prepend(h('option', { value: base.obra.id, selected: 'selected' }, S.rotuloObra(base.obra)));
   const fOper = h('input', { class: 'campo', value: base.operador, disabled: dis || !A.ehAdm() }); // só o Adm troca o operador
   const maq = seletorMaquina(base.maquina || '', dis ? [] : await M.nomesMaquinas(), { disabled: dis });
-  const ajud = editorAjudantes(base.ajudantes || [], { disabled: dis, sugestoes: dis ? [] : await A.nomesAjudantes() });
+  const ajud = editorAjudantes(base.ajudantes || [], { disabled: dis, sugestoes: dis ? [] : await A.nomesAjudantes(), operadores: dis ? [] : await A.nomesOperadores(base.operador) });
   const erros = h('div', { class: 'erros', hidden: true });
 
   let salvando = false;

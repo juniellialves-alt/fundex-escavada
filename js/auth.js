@@ -42,6 +42,10 @@ export const getUsuario = id => db.get('usuarios', id);
 export async function nomesAjudantes() {
   return (await listarUsuarios()).filter(u => u.ativo && u.perfil === 'ajudante').map(u => u.nome);
 }
+/** Operadores ativos, menos o informado (para escolher quando um operador trabalha como ajudante). */
+export async function nomesOperadores(exceto = '') {
+  return (await listarUsuarios()).filter(u => u.ativo && u.perfil === 'operador' && U.norm(u.nome) !== U.norm(exceto)).map(u => u.nome);
+}
 
 /** Cria ou altera um usuário. senha vazia = mantém a atual. */
 export async function salvarUsuario({ id, nome, login, perfil, senha, ativo = true, maquinaId = null }) {

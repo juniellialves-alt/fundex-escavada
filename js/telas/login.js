@@ -1,9 +1,9 @@
 // Tela de entrada: usuário e senha.
-import { h, registrarTela, campo, toast } from '../ui.js';
+import { h, registrarTela, campo, toast, pedirSenha } from '../ui.js';
 import { entrar } from '../auth.js';
 import { getCfg } from '../db.js';
 import { baixarAgora, sincronizar } from '../sync.js';
-import { configurarSeFaltar } from '../config-padrao.js';
+import { configurarSeFaltar, destrancar } from '../config-padrao.js';
 import { irParaInicio } from '../inicio.js';
 import { VERSAO } from '../versao.js';
 
@@ -22,7 +22,18 @@ registrarTela('login', async () => {
     btn.disabled = true; mostrar('');
     try {
       let r = await entrar(fLogin.value, fSenha.value);
-      if (!r.ok && r.naoEncontrado && configurado) {
+      if (!r.ok && r.naoEncontrado && !(await getCfg('scriptUrl'))) {
+        // Celular ainda não ligado à planilha: a senha do escritório liga na hora e o login é tentado de novo
+        let senhaEsc = '';
+        const ok = await pedirSenha(async s => { senhaEsc = s; return !!(await destrancar(s)); },
+          'Primeiro acesso neste celular: digite a senha do escritório para buscar os usuários');
+        if (ok && (await configurarSeFaltar(senhaEsc))) {
+          btn.textContent = 'Buscando usuários…';
+          const b = await sincronizar();
+          r = await entrar(fLogin.value, fSenha.value);
+          if (!r.ok && r.naoEncontrado && !b.ok) r.msg += ` Não foi possível buscar na planilha: ${b.msg}`;
+        }
+      } else if (!r.ok && r.naoEncontrado) {
         // Usuário novo: busca a lista atualizada na planilha e tenta de novo
         btn.textContent = 'Buscando usuários…';
         const b = await baixarAgora();
@@ -30,7 +41,7 @@ registrarTela('login', async () => {
         if (!r.ok && r.naoEncontrado && !b.ok) r.msg += ` Não foi possível buscar na planilha: ${b.msg}`;
       }
       if (!r.ok) {
-        if (r.naoEncontrado && !configurado) r.msg += ' Este celular ainda não está ligado à planilha: entre uma vez com o usuário "admin" e a senha do escritório.';
+        if (r.naoEncontrado && !(await getCfg('scriptUrl'))) r.msg += ' Este celular ainda não está ligado à planilha: é preciso a senha do escritório uma vez.';
         mostrar(r.msg); fSenha.select(); return;
       }
       // Celular novo: a senha do escritório destranca o endereço da planilha e o app já baixa usuários e máquinas
@@ -53,6 +64,6 @@ registrarTela('login', async () => {
       msg,
       btn),
     !configurado ? h('div', { class: 'aviso aviso-info', style: { marginTop: '16px' } },
-      'Primeiro acesso neste celular? Entre uma vez com o usuário "admin" e a senha do escritório: o app se liga sozinho à planilha e recebe os usuários e as máquinas.') : null,
+      'Primeiro acesso neste celular? Entre com o seu usuário: o app pede a senha do escritório uma única vez, se liga à planilha e busca os usuários e as máquinas.') : null,
     h('div', { class: 'versao' }, `Versão ${VERSAO}`));
 });

@@ -134,6 +134,13 @@ export function avisar(msg, titulo) {
 export async function pedirSenha(senhaOk, titulo = 'Senha do escritório') {
   const input = h('input', { type: 'password', class: 'campo', autocomplete: 'off', 'aria-label': 'Senha' });
   const erro = h('p', { class: 'erro-texto', hidden: true }, 'Senha incorreta.');
+  // Enter (ou "Ir" no teclado do celular) confirma, como tocar em ENTRAR
+  input.addEventListener('keydown', ev => {
+    if (ev.key !== 'Enter') return;
+    ev.preventDefault();
+    const bts = input.closest('.modal-fundo')?.querySelectorAll('button');
+    if (bts && bts.length) bts[bts.length - 1].click();
+  });
   let ok = false;
   await modal({
     titulo,

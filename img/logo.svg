@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 650 600" role="img" aria-label="Fundex - Fundações e Recuperação de Estrutura">
+  <g fill="#EB3237">
+    <path d="M30,265 C210,258 300,300 590,222 L590,247 C300,325 210,283 30,290 Z"/>
+    <path d="M30,305 C210,298 300,340 590,262 L590,287 C300,365 210,323 30,330 Z"/>
+    <path d="M30,345 C210,338 300,380 590,302 L590,327 C300,405 210,363 30,370 Z"/>
+    <path d="M30,385 C210,378 300,420 590,342 L590,367 C300,445 210,403 30,410 Z"/>
+  </g>
+  <g fill="#FAFAFA" stroke="#333333" stroke-width="7" stroke-linejoin="miter">
+    <polygon points="346,123 410,123 410,248 538,288 538,312 222,312 222,292 346,252"/>
+    <polygon points="258,4 332,4 332,286 404,380 404,412 192,412 192,380 258,286"/>
+  </g>
+  <text x="325" y="562" text-anchor="middle" textLength="640" lengthAdjust="spacingAndGlyphs"
+        font-family="'Arial Black','Helvetica Neue',Arial,sans-serif" font-weight="900" font-size="158" fill="#3A3A3A">FUNDEX</text>
+  <text x="325" y="592" text-anchor="middle" textLength="620" lengthAdjust="spacing"
+        font-family="Arial,Helvetica,sans-serif" font-weight="700" font-size="22" fill="#3A3A3A">Fundações e Recuperação de Estrutura</text>
+</svg>

@@ -42,8 +42,27 @@ async function iniciar() {
   });
 }
 
+// Atualização: procura versão nova ao abrir e ao voltar para o app. Quando a versão nova assume,
+// recarrega sozinho, mas só numa tela sem formulário aberto (para ninguém perder o que estava digitando).
+const TELAS_SEGURAS = [...TELAS_DE_CONSULTA, 'login', 'config'];
+function recarregarQuandoSeguro() {
+  const atual = nav.atual();
+  if ((!atual || TELAS_SEGURAS.includes(atual.nome)) && !document.querySelector('.modal-fundo')) location.reload();
+  else setTimeout(recarregarQuandoSeguro, 3000);
+}
 if ('serviceWorker' in navigator && location.protocol !== 'file:') {
-  window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(e => console.warn('SW', e)));
+  window.addEventListener('load', async () => {
+    try {
+      const jaTinha = !!navigator.serviceWorker.controller;
+      const reg = await navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' });
+      let recarregou = false;
+      navigator.serviceWorker.addEventListener('controllerchange', () => {
+        if (jaTinha && !recarregou) { recarregou = true; recarregarQuandoSeguro(); }
+      });
+      document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') reg.update().catch(() => {}); });
+      reg.update().catch(() => {});
+    } catch (e) { console.warn('SW', e); }
+  });
 }
 
 iniciar().catch(e => {

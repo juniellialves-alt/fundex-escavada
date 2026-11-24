@@ -1,6 +1,6 @@
 // Service worker: guarda o app no celular para abrir e funcionar sem internet.
 // Ao publicar uma atualização, aumente a versão abaixo (e em js/versao.js).
-const CACHE = 'fundex-escavada-1.3.1';
+const CACHE = 'fundex-escavada-1.3.2';
 const ARQUIVOS = [
   './', 'index.html', 'manifest.webmanifest', 'css/app.css',
   'img/logo.svg', 'img/icone-192.png', 'img/icone-512.png', 'img/icone-maskable-512.png', 'img/apple-touch-icon.png',
@@ -10,8 +10,11 @@ const ARQUIVOS = [
   'js/telas/cartoes.js', 'js/telas/ocorrencias.js', 'js/telas/producao.js', 'js/telas/config.js',
 ];
 
+// cache: 'reload' busca direto do GitHub, sem pegar cópia velha guardada pelo navegador (o GitHub Pages guarda por 10 min).
 self.addEventListener('install', e => {
-  e.waitUntil(caches.open(CACHE).then(c => c.addAll(ARQUIVOS)).then(() => self.skipWaiting()));
+  e.waitUntil(caches.open(CACHE)
+    .then(c => c.addAll(ARQUIVOS.map(u => new Request(u, { cache: 'reload' }))))
+    .then(() => self.skipWaiting()));
 });
 
 self.addEventListener('activate', e => {
@@ -27,7 +30,7 @@ self.addEventListener('fetch', e => {
   const chave = req.mode === 'navigate' ? 'index.html' : req;
   e.respondWith(caches.open(CACHE).then(async cache => {
     const salvo = await cache.match(chave, { ignoreSearch: true });
-    const rede = fetch(req).then(resp => {
+    const rede = fetch(req, { cache: 'no-cache' }).then(resp => {
       if (resp && resp.ok) cache.put(chave, resp.clone());
       return resp;
     }).catch(() => null);

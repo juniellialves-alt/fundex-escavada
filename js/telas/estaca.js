@@ -43,6 +43,54 @@ export function seletorDiametro(inicial, desabilitado) {
 
 export const numParaCampo = n => (n == null || n === '' ? '' : String(n).replace('.', ','));
 
+/**
+ * Serviços adicionais da estaca (alargamento de base e colocação de armadura): data, início e término de cada um.
+ * Tudo em branco = serviço não feito. Se o horário não mudou, mantém o horário exato do cronômetro.
+ */
+function editorServicos(inicial = {}, { disabled = false, dataPadrao = U.today() } = {}) {
+  const linhas = S.TIPOS_SERVICO.map(tipo => {
+    const s = inicial[tipo];
+    const fD = h('input', { type: 'date', class: 'campo', value: s && s.inicio ? U.dateOf(s.inicio) : '', max: U.today(), disabled });
+    const fI = h('input', { type: 'time', class: 'campo', value: s && s.inicio ? U.timeOf(s.inicio) : '', disabled });
+    const fF = h('input', { type: 'time', class: 'campo', value: s && s.fim ? U.timeOf(s.fim) : '', disabled });
+    const tempo = h('div', { class: 'v' }, '—');
+    const att = () => { const d = U.hmDiff(fI.value, fF.value); tempo.textContent = d == null ? '—' : d <= 0 ? 'Término deve ser depois do início' : U.fmtDur(d); };
+    [fI, fF].forEach(x => x.addEventListener('input', () => { if (!fD.value && (fI.value || fF.value)) fD.value = dataPadrao; att(); }));
+    att();
+    const limpar = disabled ? null : h('button', { type: 'button', class: 'link-discreto', onclick: () => { fD.value = ''; fI.value = ''; fF.value = ''; att(); } }, 'Não foi feito (limpar)');
+    const el = h('div', { class: 'conferencia-box', style: { marginTop: '8px' } },
+      h('b', null, S.SERVICOS[tipo]),
+      campo('Data', fD),
+      h('div', { class: 'linha-2' }, campo('Início', fI), campo('Término', fF)),
+      h('div', { class: 'dado' }, h('div', { class: 'k' }, 'Tempo'), tempo),
+      disabled && !(s && s.inicio) ? h('div', { class: 'v' }, 'Não feito') : limpar);
+    const ler = () => {
+      if (!fD.value && !fI.value && !fF.value) return { tipo, s: null };
+      if (!fD.value || !fI.value || !fF.value) return { tipo, erro: `${S.SERVICOS[tipo]}: preencha data, início e término (ou toque em "limpar").` };
+      if (U.hmDiff(fI.value, fF.value) <= 0) return { tipo, erro: `${S.SERVICOS[tipo]}: o término precisa ser depois do início.` };
+      let ini = U.toTs(fD.value, fI.value), fim = U.toTs(fD.value, fF.value);
+      if (s && s.inicio && U.dateOf(s.inicio) === fD.value && U.timeOf(s.inicio) === fI.value) ini = s.inicio;
+      if (s && s.fim && U.dateOf(s.fim) === fD.value && U.timeOf(s.fim) === fF.value) fim = s.fim;
+      if (fim > Date.now() + 60000) return { tipo, erro: `${S.SERVICOS[tipo]}: o término não pode ser no futuro.` };
+      return { tipo, s: { inicio: ini, fim, operador: (s && s.operador) || (A.sessao() ? A.sessao().nome : '') } };
+    };
+    return { el, ler };
+  });
+  return {
+    el: h('div', { class: 'grupo' }, h('span', { class: 'rotulo' }, 'Serviços adicionais'),
+      h('div', { class: 'dica' }, 'Preencha só se o serviço foi feito nesta estaca.'), linhas.map(l => l.el)),
+    /** Retorna {servicos} ou {erros: [...]} */
+    ler() {
+      const r = linhas.map(l => l.ler());
+      const erros = r.filter(x => x.erro).map(x => x.erro);
+      if (erros.length) return { erros };
+      const servicos = {};
+      for (const x of r) if (x.s) servicos[x.tipo] = x.s;
+      return { servicos };
+    },
+  };
+}
+
 registrarTela('estaca', async ({ modo = 'manual', id }) => {
   const ativo = await S.getAtivo();
   let crono = null, antigo = null;
@@ -96,6 +144,10 @@ registrarTela('estaca', async ({ modo = 'manual', id }) => {
   const maq = seletorMaquina(base.maquina || '', dis ? [] : await M.nomesMaquinas(), { disabled: dis });
   const ajud = editorAjudantes(base.ajudantes || [], { disabled: dis, sugestoes: dis ? [] : await A.nomesAjudantes(), operadores: dis ? [] : await A.nomesOperadores(base.operador) });
 
+  // serviços: da estaca (editar), do cronômetro (feitos na sequência da perfuração) ou nenhum (manual)
+  const servIniciais = modo === 'cronometro' ? (crono.servicos || {}) : (base.servicos || {});
+  const serv = editorServicos(servIniciais, { disabled: dis, dataPadrao: base.data || (crono ? U.dateOf(crono.inicio) : hoje) });
+
   const dado = (k, v, largo) => h('div', { class: 'dado' + (largo ? ' largo' : '') }, h('div', { class: 'k' }, k), h('div', { class: 'v' }, v || '—'));
 
   // ---- salvar ----
@@ -124,13 +176,15 @@ registrarTela('estaca', async ({ modo = 'manual', id }) => {
       if (inicio && fim > Date.now() + 60000) e.push('O término não pode ser no futuro.');
     }
     if (modo === 'editar' && (!fOper.value.trim() || !maq.ler())) e.push('Informe operador e máquina.');
+    const sv = serv.ler();
+    if (sv.erros) e.push(...sv.erros);
     mostrarErros(erros, e);
     if (e.length) return;
 
     salvando = true;
     try {
       const obraSel = modo === 'cronometro' ? ctx.obra : (await S.getObra(fObra.value)) || (antigo && antigo.obra);
-      const dados = { nome, diametro: d, profundidade: Math.round(prof * 100) / 100, observacao: fObs.value.trim(), inicio, fim, obra: obraSel };
+      const dados = { nome, diametro: d, profundidade: Math.round(prof * 100) / 100, observacao: fObs.value.trim(), inicio, fim, obra: obraSel, servicos: sv.servicos };
 
       if (modo === 'cronometro') {
         await S.criarEstaca({ ...dados, operador: ctx.operador, operadorId: ctx.operadorId || A.sessao().id, ajudantes: ctx.ajudantes || [], maquina: ctx.maquina, manual: false });
@@ -216,6 +270,7 @@ registrarTela('estaca', async ({ modo = 'manual', id }) => {
         camposDataHora,
         campo('Observação da estaca', fObs),
         camposEquipe,
+        serv.el,
         erros,
         botoes)));
 });

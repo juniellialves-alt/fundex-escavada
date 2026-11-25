@@ -170,6 +170,9 @@ select.campo { appearance: auto; }
 .linha-ajudante .campo { flex: 1; min-width: 0; }
 .linha-ajudante .btn-icone { min-height: 60px; min-width: 60px; font-size: 24px; color: var(--vermelho-forte); }
 
+.botoes-servico { display: flex; flex-direction: column; gap: 8px; margin-top: 10px; }
+.botoes-servico:empty { display: none; }
+
 /* Escolha por toque: máquina e ajudantes */
 .grade-opcoes { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 8px; }
 .grade-opcoes .opcao {

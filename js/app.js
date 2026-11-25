@@ -15,6 +15,7 @@ import './telas/producao.js';
 import './telas/config.js';
 import './telas/usuarios.js';
 import './telas/maquinas.js';
+import './telas/servico.js';
 
 // Telas que só mostram dados: são redesenhadas quando chegam novidades da planilha.
 const TELAS_DE_CONSULTA = ['principal', 'lista', 'producao', 'dia', 'ocorrencias', 'usuarios', 'maquinas'];

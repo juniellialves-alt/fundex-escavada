@@ -100,6 +100,51 @@ export async function pararCrono(ts) {
 }
 export async function limparCrono() { await setCfg('cronometro', null); }
 
+/* ---------------- Serviços adicionais (alargamento de base e colocação de armadura) ---------------- */
+// Ficam dentro da estaca: e.servicos = { alargamento: {inicio, fim, operador}, armadura: {...} } (horários em ms).
+export const SERVICOS = { alargamento: 'Alargamento de base', armadura: 'Colocação de armadura' };
+export const TIPOS_SERVICO = ['alargamento', 'armadura'];
+export const servicoEmAndamento = c => !!(c && c.servicoAtual && c.servicos && c.servicos[c.servicoAtual] && !c.servicos[c.servicoAtual].fim);
+
+/**
+ * Na sequência da perfuração: termina o que está rodando (perfuração ou serviço) e, se tipo for informado,
+ * começa esse serviço no mesmo instante. tipo = null só termina o serviço em andamento.
+ */
+export async function trocarEtapa(ts, tipo) {
+  const c = await getCrono();
+  if (!c) return null;
+  if (!c.fim) c.fim = ts;
+  c.servicos = c.servicos || {};
+  if (servicoEmAndamento(c)) c.servicos[c.servicoAtual].fim = ts;
+  if (tipo) { c.servicos[tipo] = { inicio: ts, fim: null, operador: sessao() ? sessao().nome : '' }; c.servicoAtual = tipo; }
+  else c.servicoAtual = null;
+  await setCfg('cronometro', c);
+  return c;
+}
+
+/** Serviço feito depois (outra hora ou outro dia): cronômetro próprio, a estaca é escolhida no fim. */
+export const getServicoAvulso = () => getCfg('servicoAvulso');
+export async function iniciarServicoAvulso(tipo, ts) { await setCfg('servicoAvulso', { tipo, inicio: ts, fim: null }); }
+export async function pararServicoAvulso(ts) {
+  const s = await getServicoAvulso();
+  if (s && !s.fim) { s.fim = ts; await setCfg('servicoAvulso', s); }
+  return s;
+}
+export async function limparServicoAvulso() { await setCfg('servicoAvulso', null); }
+
+/** Liga um serviço a uma estaca já lançada (substitui o que houver desse tipo). */
+export async function registrarServico(e, tipo, serv) {
+  const novo = { ...e, servicos: { ...(e.servicos || {}), [tipo]: { inicio: serv.inicio, fim: serv.fim, operador: serv.operador || (sessao() ? sessao().nome : '') } } };
+  await editarEstaca(e, novo);
+  return novo;
+}
+
+/** "25/11 08:30–08:55 (25min)" para mostrar e para a aba Alterações. */
+export function fmtServico(s) {
+  if (!s || !s.inicio || !s.fim) return '';
+  return `${U.fmtDate(U.dateOf(s.inicio))} ${U.timeOf(s.inicio)}-${U.timeOf(s.fim)}`;
+}
+
 /* ---------------- Estacas ---------------- */
 export function calcDuracao(e) {
   e.duracao = Math.max(0, Math.round((e.fim - e.inicio) / 1000));
@@ -145,6 +190,8 @@ const CAMPOS_ESTACA = [
   ['data', 'Data', U.fmtDate], ['inicio', 'Início', v => U.timeOf(v)], ['fim', 'Término', v => U.timeOf(v)],
   ['observacao', 'Observação'], ['obra', 'Obra', rotuloObra], ['operador', 'Operador'], ['ajudantes', 'Ajudante(s)', fmtAjudantes],
   ['maquina', 'Máquina'],
+  ['servicos', 'Alargamento de base', s => fmtServico(s && s.alargamento)],
+  ['servicos', 'Colocação de armadura', s => fmtServico(s && s.armadura)],
 ];
 const CAMPOS_OCORRENCIA = [
   ['tipo', 'Ocorrência'], ['outros', 'Descrição (Outros)'], ['responsabilidade', 'Responsabilidade'],

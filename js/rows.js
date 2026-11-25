@@ -2,11 +2,20 @@
 import * as U from './util.js';
 import { nomeOcorrencia, tempoParado, fmtAjudantes } from './store.js';
 
+// Serviços adicionais: 4 colunas cada (data, início, término e tempo). Vazias quando o serviço não foi feito.
+const SERV_COLS = [['alargamento', 'Alargamento'], ['armadura', 'Armadura']];
+const COLS_SERVICOS = SERV_COLS.flatMap(([, r]) => [`${r} – data`, `${r} – início`, `${r} – término`, `${r} – tempo`]);
+const linhaServicos = e => SERV_COLS.flatMap(([k]) => {
+  const s = e.servicos && e.servicos[k];
+  if (!s || !s.inicio || !s.fim) return ['', '', '', ''];
+  return [U.fmtDate(U.dateOf(s.inicio)), U.timeOf(s.inicio), U.timeOf(s.fim), U.fmtDur((s.fim - s.inicio) / 1000)];
+});
+
 export const COLS_ESTACA = ['Nº da obra', 'Cliente', 'Obra', 'Endereço', 'Máquina', 'Operador', 'Ajudante(s)', 'Data', 'Estaca',
-  'Diâmetro (cm)', 'Profundidade (m)', 'Início', 'Término', 'Duração', 'Observação', 'Lançamento manual'];
+  'Diâmetro (cm)', 'Profundidade (m)', 'Início', 'Término', 'Duração', 'Observação', 'Lançamento manual', ...COLS_SERVICOS];
 export function linhaEstaca(e) {
   return [e.obra.numero, e.obra.cliente, e.obra.nome, e.obra.endereco || '', e.maquina, e.operador, fmtAjudantes(e.ajudantes), U.fmtDate(e.data), e.nome,
-    e.diametro, e.profundidade, U.timeOf(e.inicio), U.timeOf(e.fim), U.fmtDur(e.duracao), e.observacao || '', e.manual ? 'Sim' : 'Não'];
+    e.diametro, e.profundidade, U.timeOf(e.inicio), U.timeOf(e.fim), U.fmtDur(e.duracao), e.observacao || '', e.manual ? 'Sim' : 'Não', ...linhaServicos(e)];
 }
 
 export const COLS_OCORRENCIA = ['Nº da obra', 'Cliente', 'Obra', 'Máquina', 'Operador', 'Ajudante(s)', 'Data', 'Responsabilidade',

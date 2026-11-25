@@ -118,7 +118,8 @@ registrarTela('principal', async () => {
   const sync = barraSync();
   let ocupado = false;
   const NOME = S.SERVICOS;
-  const MAIUSC = { alargamento: 'ALARGAMENTO', armadura: 'ARMADURA' };
+  const MAIUSC = { armadura: 'ARMADURA', alargamento: 'ALARGAMENTO', apiloamento: 'APILOAMENTO' };
+  const jaFeito = t => !!(crono && crono.servicos && crono.servicos[t] && crono.servicos[t].inicio);
 
   const botaoExtra = (texto, fn) => h('button', { class: 'btn btn-escuro btn-medio', onclick: () => executar(fn) }, texto);
   async function executar(fn) {
@@ -156,17 +157,16 @@ registrarTela('principal', async () => {
       tempo.textContent = U.fmtDur((Date.now() - crono.inicio) / 1000); tempo.classList.remove('parado');
       info.textContent = `Perfuração – início às ${U.timeOf(crono.inicio)}`;
       btn.classList.add('btn-vermelho'); btn.textContent = '■ FINALIZAR ESTACA';
-      extras.append(botaoExtra('Finalizar e iniciar alargamento de base', iniciarEmSequencia('alargamento')),
-        botaoExtra('Finalizar e iniciar colocação de armadura', iniciarEmSequencia('armadura')));
+      extras.append(...S.TIPOS_SERVICO.map(t => botaoExtra(`Finalizar e iniciar ${NOME[t].toLowerCase()}`, iniciarEmSequencia(t))));
       cancelar.textContent = 'Cancelar estaca iniciada por engano';
     } else if (S.servicoEmAndamento(crono)) {
       const s = crono.servicos[crono.servicoAtual];
       tempo.textContent = U.fmtDur((Date.now() - s.inicio) / 1000); tempo.classList.remove('parado');
       info.textContent = `${NOME[crono.servicoAtual]} – início às ${U.timeOf(s.inicio)} (perfuração terminou às ${U.timeOf(crono.fim)})`;
       btn.classList.add('btn-vermelho'); btn.textContent = `■ FINALIZAR ${MAIUSC[crono.servicoAtual]}`;
-      if (crono.servicoAtual === 'alargamento' && !(crono.servicos.armadura && crono.servicos.armadura.inicio)) {
-        extras.append(botaoExtra('Finalizar e iniciar colocação de armadura', iniciarEmSequencia('armadura')));
-      }
+      // emenda com outro serviço ainda não feito nesta estaca
+      extras.append(...S.TIPOS_SERVICO.filter(t => t !== crono.servicoAtual && !jaFeito(t))
+        .map(t => botaoExtra(`Finalizar e iniciar ${NOME[t].toLowerCase()}`, iniciarEmSequencia(t))));
       cancelar.textContent = 'Cancelar estaca iniciada por engano';
     } else {
       tempo.textContent = U.fmtDur((crono.fim - crono.inicio) / 1000); tempo.classList.add('parado');

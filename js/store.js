@@ -100,10 +100,10 @@ export async function pararCrono(ts) {
 }
 export async function limparCrono() { await setCfg('cronometro', null); }
 
-/* ---------------- Serviços adicionais (alargamento de base e colocação de armadura) ---------------- */
-// Ficam dentro da estaca: e.servicos = { alargamento: {inicio, fim, operador}, armadura: {...} } (horários em ms).
-export const SERVICOS = { alargamento: 'Alargamento de base', armadura: 'Colocação de armadura' };
-export const TIPOS_SERVICO = ['alargamento', 'armadura'];
+/* ---------------- Serviços adicionais (armadura, alargamento de base e apiloamento) ---------------- */
+// Ficam dentro da estaca: e.servicos = { armadura: {inicio, fim, operador}, alargamento: {...}, apiloamento: {...} } (horários em ms).
+export const SERVICOS = { armadura: 'Colocação de armadura', alargamento: 'Alargamento de base', apiloamento: 'Apiloamento (concreto na ponta)' };
+export const TIPOS_SERVICO = ['armadura', 'alargamento', 'apiloamento'];
 export const servicoEmAndamento = c => !!(c && c.servicoAtual && c.servicos && c.servicos[c.servicoAtual] && !c.servicos[c.servicoAtual].fim);
 
 /**
@@ -190,8 +190,9 @@ const CAMPOS_ESTACA = [
   ['data', 'Data', U.fmtDate], ['inicio', 'Início', v => U.timeOf(v)], ['fim', 'Término', v => U.timeOf(v)],
   ['observacao', 'Observação'], ['obra', 'Obra', rotuloObra], ['operador', 'Operador'], ['ajudantes', 'Ajudante(s)', fmtAjudantes],
   ['maquina', 'Máquina'],
-  ['servicos', 'Alargamento de base', s => fmtServico(s && s.alargamento)],
   ['servicos', 'Colocação de armadura', s => fmtServico(s && s.armadura)],
+  ['servicos', 'Alargamento de base', s => fmtServico(s && s.alargamento)],
+  ['servicos', 'Apiloamento (concreto na ponta)', s => fmtServico(s && s.apiloamento)],
 ];
 const CAMPOS_OCORRENCIA = [
   ['tipo', 'Ocorrência'], ['outros', 'Descrição (Outros)'], ['responsabilidade', 'Responsabilidade'],

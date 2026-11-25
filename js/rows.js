@@ -3,7 +3,7 @@ import * as U from './util.js';
 import { nomeOcorrencia, tempoParado, fmtAjudantes } from './store.js';
 
 // Serviços adicionais: 4 colunas cada (data, início, término e tempo). Vazias quando o serviço não foi feito.
-const SERV_COLS = [['alargamento', 'Alargamento'], ['armadura', 'Armadura']];
+const SERV_COLS = [['armadura', 'Armadura'], ['alargamento', 'Alargamento'], ['apiloamento', 'Apiloamento']];
 const COLS_SERVICOS = SERV_COLS.flatMap(([, r]) => [`${r} – data`, `${r} – início`, `${r} – término`, `${r} – tempo`]);
 const linhaServicos = e => SERV_COLS.flatMap(([k]) => {
   const s = e.servicos && e.servicos[k];
